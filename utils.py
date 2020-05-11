@@ -1,10 +1,10 @@
 import os
 import argparse
 import torch
-#pylint: disable=W0611
+import numpy as np
+from PIL import Image
 from torch.optim import Adam
 from torch.optim import SGD
-#pylint: enable=W0611
 
 def initializer():
     """initializer of the program.
@@ -57,7 +57,7 @@ def initializer():
 
     # TODO: return model, optimizer, args
 
-
+    return args
     """
     # Remaining configurations
     "discriminator":"discriminator_IN",
@@ -72,3 +72,40 @@ def initializer():
     "with_scale":"false",
     "output_dir": "./HoloGAN"
      """
+
+def load_dataset(args):
+    train_loader = 0
+    test_loader = 0
+    return train_loader, test_loader
+
+# Following preprocessing is taken from the original paper and modified a little for our's
+def get_image(image_path, input_height, input_width,
+              resize_height=64, resize_width=64,
+              crop=True):
+  image = load_webp(image_path)
+  print(image.shape)
+  return transform(image, input_height, input_width,
+                   resize_height, resize_width, crop)
+
+def load_webp(img_path):
+    im = Image.open(img_path)
+    return np.asarray(im)
+
+def center_crop(x, crop_h, crop_w, resize_h=64, resize_w=64):
+    if crop_w is None:
+        crop_w = crop_h
+    h, w = x.shape[:2]
+    j = int(round((h - crop_h)/2.))
+    i = int(round((w - crop_w)/2.))
+    cropped_image = x[j:j+crop_h, i:i+crop_w]
+    return np.array(Image.fromarray(cropped_image).resize((resize_w, resize_h)))
+
+def transform(image, input_height, input_width,
+              resize_height=64, resize_width=64, crop=True):
+    if crop:
+        cropped_image = center_crop(image, input_height, input_width, resize_height, resize_width)
+    else:
+        cropped_image = np.array(Image.fromarray(image).resize((resize_width, resize_height)))
+    if len(cropped_image.shape) != 3: #In case of binary mask with no channels:
+        cropped_image = np.expand_dims(cropped_image, -1)
+    return np.array(cropped_image)[:, :, :3]/127.5 - 1.
