@@ -83,7 +83,6 @@ def get_image(image_path, input_height, input_width,
               resize_height=64, resize_width=64,
               crop=True):
   image = load_webp(image_path)
-  print(image.shape)
   return transform(image, input_height, input_width,
                    resize_height, resize_width, crop)
 
