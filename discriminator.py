@@ -7,8 +7,7 @@ class BasicBlock(nn.Module):
         super(BasicBlock, self).__init__()
         self.conv2d = nn.Conv2d(inplanes, planes, kernel_size=5, stride=2, padding=2)
         nn.init.normal_(self.conv2d.weight, std=0.02)
-
-        self.conv2d_specNorm = nn.utils.spectral_norm(self.conv2d, self.conv2d.weight)
+        self.conv2d_specNorm = nn.utils.spectral_norm(self.conv2d)
         self.instanceNorm = nn.InstanceNorm2d(planes)
         self.lrelu = nn.LeakyReLU(0.2, inplace=True)
 
