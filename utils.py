@@ -1,10 +1,12 @@
 import os
 import argparse
 import torch
+import random
 import numpy as np
 from PIL import Image
 from torch.optim import Adam
-from torch.optim import SGD
+from torchvision import datasets, transforms
+from hologan import HoloGAN
 
 def initializer():
     """initializer of the program.
@@ -14,7 +16,8 @@ def initializer():
     #pylint: disable=C0326, C0330
     parser = argparse.ArgumentParser(description='PyTorch HoloGAN implementation')
     parser.add_argument('--seed',           type=int,             default=23)
-    parser.add_argument('--image-path',     type=str,             default="./celebA")
+    parser.add_argument('--image-path',     type=str,             default="../dataset/fake/celebA")
+    parser.add_argument('--dataset',        type=str,             default="celebA", choices=["celebA"])
     parser.add_argument('--gpu',            action='store_true',  default=False)
     parser.add_argument('--batch-size',     type=int,             default=32)
     parser.add_argument('--max-epochs',     type=int,             default=50)
@@ -45,9 +48,11 @@ def initializer():
     use_cuda = args.gpu and torch.cuda.is_available()
     args.device = torch.device('cuda' if use_cuda else 'cpu')
 
-    # TODO: model configurations
+    # model configurations
+    model = HoloGAN(z_dim = args.z_dim)
 
-    # TODO: optimizer configurations
+    # optimizer configurations
+    optimizer = Adam(model.parameters(), lr=args.d_eta, betas=(args.beta1, args.beta2))
 
     # TODO: create result folder
 
@@ -55,16 +60,9 @@ def initializer():
 
     # TODO: continue to broken training
 
-    # TODO: return model, optimizer, args
-
-    return args
+    return model, optimizer, args
     """
     # Remaining configurations
-    "discriminator":"discriminator_IN",
-    "generator":"generator_AdaIN8",
-    "view_func":"generate_random_rotation_translation",
-    "train_func":"train_HoloGAN",
-    "build_func":"build_HoloGAN",
     "style_disc":"false",
     "sample_z":"uniform",
     "add_D_noise":"false",
@@ -74,37 +72,25 @@ def initializer():
      """
 
 def load_dataset(args):
-    train_loader = 0
-    test_loader = 0
-    return train_loader, test_loader
+    """dataset loader.
 
-# Following preprocessing is taken from the original paper and modified a little for our's
-def get_image(image_path, input_height, input_width,
-              resize_height=64, resize_width=64,
-              crop=True):
-  image = load_webp(image_path)
-  return transform(image, input_height, input_width,
-                   resize_height, resize_width, crop)
+    This loads the dataset.
+    """
+    kwargs = {'num_workers': 2, 'pin_memory': True} if args.device == 'cuda' else {}
 
-def load_webp(img_path):
-    im = Image.open(img_path)
-    return np.asarray(im)
+    if args.dataset == 'celebA':
+        root = '../dataset/fake/celebA'
 
-def center_crop(x, crop_h, crop_w, resize_h=64, resize_w=64):
-    if crop_w is None:
-        crop_w = crop_h
-    h, w = x.shape[:2]
-    j = int(round((h - crop_h)/2.))
-    i = int(round((w - crop_w)/2.))
-    cropped_image = x[j:j+crop_h, i:i+crop_w]
-    return np.array(Image.fromarray(cropped_image).resize((resize_w, resize_h)))
+        transform = transforms.Compose([\
+            transforms.CenterCrop(108),
+            transforms.Resize(64),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))])
 
-def transform(image, input_height, input_width,
-              resize_height=64, resize_width=64, crop=True):
-    if crop:
-        cropped_image = center_crop(image, input_height, input_width, resize_height, resize_width)
-    else:
-        cropped_image = np.array(Image.fromarray(image).resize((resize_width, resize_height)))
-    if len(cropped_image.shape) != 3: #In case of binary mask with no channels:
-        cropped_image = np.expand_dims(cropped_image, -1)
-    return np.array(cropped_image)[:, :, :3]/127.5 - 1.
+        trainset = datasets.ImageFolder(root=root, transform=transform)
+        #trainset = datasets.ImageFolder(root=root+'/train', transform=transform)
+        #testset = datasets.ImageFolder(root=root+'/val', transform=transform)
+
+    train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size,\
+                    shuffle=True, **kwargs)
+    return train_loader
