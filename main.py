@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from utils import initializer
+from init import initializer
 from utils import load_dataset
 import matplotlib.pyplot as plt
 
@@ -28,12 +28,11 @@ def train(args, model, train_loader, optimizer):
     losses = []
     model.train()
     for data, _ in train_loader:
-        plt.imshow(np.array(data[0].permute(1, 2, 0) * 255).astype(np.uint8))
-        #data = data.to(args.device)
-        #optimizer.zero_grad()
+        data = data.to(args.device)
+        optimizer.zero_grad()
 
-        #pred = model(data)
-        #print(pred)
+        pred = model(data)
+        print(pred)
         #loss = F.cross_entropy(pred, target)
 
         #losses.append(float(loss))

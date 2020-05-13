@@ -1,75 +1,6 @@
-import os
-import argparse
 import torch
-import random
 import numpy as np
-from PIL import Image
-from torch.optim import Adam
 from torchvision import datasets, transforms
-from hologan import HoloGAN
-
-def initializer():
-    """initializer of the program.
-
-    This parses and extracts all training and testing settings.
-    """
-    #pylint: disable=C0326, C0330
-    parser = argparse.ArgumentParser(description='PyTorch HoloGAN implementation')
-    parser.add_argument('--seed',           type=int,             default=23)
-    parser.add_argument('--image-path',     type=str,             default="../dataset/fake/celebA")
-    parser.add_argument('--dataset',        type=str,             default="celebA", choices=["celebA"])
-    parser.add_argument('--gpu',            action='store_true',  default=False)
-    parser.add_argument('--batch-size',     type=int,             default=32)
-    parser.add_argument('--max-epochs',     type=int,             default=50)
-    parser.add_argument('--epoch-step',     type=int,             default=25)
-    parser.add_argument('--z-dim',          type=int,             default=128)
-    parser.add_argument('--d-eta',          type=float,           default=0.0001)
-    parser.add_argument('--g-eta',          type=float,           default=0.0001)
-    parser.add_argument('--beta1',          type=float,           default=0.5)
-    parser.add_argument('--beta2',          type=float,           default=0.999)
-    parser.add_argument('--DStyle-lambda',  type=float,           default=1.0)
-    parser.add_argument('--lambda-latent',  type=float,           default=0.0)
-    parser.add_argument('--ele-low',        type=int,             default=70)
-    parser.add_argument('--ele-high',       type=int,             default=110)
-    parser.add_argument('--azi-low',        type=int,             default=220)
-    parser.add_argument('--azi-high',       type=int,             default=320)
-    parser.add_argument('--scale-low',      type=float,           default=1.0)
-    parser.add_argument('--scale-high',     type=float,           default=1.0)
-    parser.add_argument('--x-low',          type=int,             default=0)
-    parser.add_argument('--x-high',         type=int,             default=0)
-    parser.add_argument('--y-low',          type=int,             default=0)
-    parser.add_argument('--y-high',         type=int,             default=0)
-    parser.add_argument('--z-low',          type=int,             default=0)
-    parser.add_argument('--z-high',         type=int,             default=0)
-    #pylint: enable=C0326, C0330
-    args = parser.parse_args()
-
-    torch.manual_seed(args.seed)
-    use_cuda = args.gpu and torch.cuda.is_available()
-    args.device = torch.device('cuda' if use_cuda else 'cpu')
-
-    # model configurations
-    model = HoloGAN(z_dim = args.z_dim)
-
-    # optimizer configurations
-    optimizer = Adam(model.parameters(), lr=args.d_eta, betas=(args.beta1, args.beta2))
-
-    # TODO: create result folder
-
-    # TODO: create model folder
-
-    # TODO: continue to broken training
-
-    return model, optimizer, args
-    """
-    # Remaining configurations
-    "style_disc":"false",
-    "sample_z":"uniform",
-    "add_D_noise":"false",
-    "with_translation":"false",
-    "with_scale":"false",
-    "output_dir": "./HoloGAN"
-     """
 
 def load_dataset(args):
     """dataset loader.
@@ -94,3 +25,33 @@ def load_dataset(args):
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size,\
                     shuffle=True, **kwargs)
     return train_loader
+
+
+def spectral_norm(w, iteration=1, u_weight=None):
+    w_shape = list(w.shape)
+    w = w.reshape(-1, w_shape[-1])
+    if u_weight is None:
+        u = tf.get_variable("u", [1, w_shape[-1]], initializer=tf.truncated_normal_initializer(), trainable=False)
+    else:
+        u = u_weight
+
+    u_hat = u
+    v_hat = None
+    for i in range(iteration):
+        """
+        power iteration
+        Usually iteration = 1 will be enough
+        """
+        v_ = tf.matmul(u_hat, tf.transpose(w))
+        v_hat = l2_norm(v_)
+
+        u_ = tf.matmul(v_hat, w)
+        u_hat = l2_norm(u_)
+
+    sigma = tf.matmul(tf.matmul(v_hat, w), tf.transpose(u_hat))
+    w_norm = w / sigma
+
+    with tf.control_dependencies([u.assign(u_hat)]):
+        w_norm = tf.reshape(w_norm, w_shape)
+
+    return w_norm

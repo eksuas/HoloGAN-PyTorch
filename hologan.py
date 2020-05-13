@@ -20,7 +20,7 @@ class HoloGAN(nn.Module):
         self.c_dim = c_dim
 
         # TODO: in feature we may need to transform the weigts of our layers to check the exact results
-        self.discriminator = Discriminator(inplanes=self.c_dim, planes=kwargs["z_dim"], cont_dim=self.df_dim, reuse=False)
+        self.discriminator = Discriminator(inplanes=self.c_dim, planes=df_dim, cont_dim=kwargs["z_dim"], reuse=False)
 
         # TODO: buradaki z değişkeni batch ile değişecek yani forwardda olmalı aslında
         self.generator = Generator(kwargs["z_dim"], self.gf_dim)
