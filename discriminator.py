@@ -1,5 +1,4 @@
 from torch import nn
-from utils import spectral_norm
 
 class BasicBlock(nn.Module):
     """Basic Block defition of the Discriminator.
