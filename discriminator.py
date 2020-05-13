@@ -6,18 +6,12 @@ class BasicBlock(nn.Module):
     """
     def __init__(self, inplanes, planes):
         super(BasicBlock, self).__init__()
-        # TODO: şimdilik harici weight initializingi desteklemiyoruz
-        self.conv2d_specNorm = nn.Conv2d(inplanes, planes, kernel_size=5, stride=2, padding=2)
-        nn.init.normal_(self.conv2d_specNorm.weight, std=0.02)
-        #self.conv2d_specNorm.weight = spectral_norm(self.conv2d_specNorm.weight)
+        self.conv2d = nn.Conv2d(inplanes, planes, kernel_size=5, stride=2, padding=2)
+        nn.init.normal_(self.conv2d.weight, std=0.02)
 
+        self.conv2d_specNorm = nn.utils.spectral_norm(self.conv2d, self.conv2d.weight)
         self.instanceNorm = nn.InstanceNorm2d(planes)
         self.lrelu = nn.LeakyReLU(0.2, inplace=True)
-
-        # TODO: aşağıdaki iki method CycleGAN'dan alınmış
-        # TODO: spectral_norm da bu kullanılmış initializer=tf.truncated_normal_initializer()
-        # self.spectral_norm = spectral_norm()
-        #self.instance_norm = nn.InstanceNorm2d()
 
     def forward(self, x):
         out = self.conv2d_specNorm(x)
@@ -28,11 +22,6 @@ class BasicBlock(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, inplanes, planes, cont_dim, reuse=False):
         super(Discriminator, self).__init__()
-        # TODO: add d noise implement edilsin mi default false
-        # TODO: tensorflow da variable scope diye birşey varmış ve bununla reuse variable yapılabiliyormuş bunu ekleyelim mi
-        # weight_initializer_type=tf.random_normal_initializer(stddev=0.02)
-        # TODO: torch.nn.init.normal_(layers.weight, std=0.02)
-
         self.conv2d = nn.Conv2d(inplanes, planes, kernel_size=5, stride=2, padding=2)
         nn.init.normal_(self.conv2d.weight, std=0.02)
 
