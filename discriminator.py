@@ -3,12 +3,12 @@ from torch import nn
 class BasicBlock(nn.Module):
     """Basic Block defition of the Discriminator.
     """
-    def __init__(self, inplanes, planes):
+    def __init__(self, in_planes, out_planes):
         super(BasicBlock, self).__init__()
-        self.conv2d = nn.Conv2d(inplanes, planes, kernel_size=5, stride=2, padding=2)
+        self.conv2d = nn.Conv2d(in_planes, out_planes, kernel_size=5, stride=2, padding=2)
         nn.init.normal_(self.conv2d.weight, std=0.02)
         self.conv2d_specNorm = nn.utils.spectral_norm(self.conv2d)
-        self.instanceNorm = nn.InstanceNorm2d(planes)
+        self.instanceNorm = nn.InstanceNorm2d(out_planes)
         self.lrelu = nn.LeakyReLU(0.2, inplace=True)
 
     def forward(self, x):
@@ -18,15 +18,15 @@ class BasicBlock(nn.Module):
         return out
 
 class Discriminator(nn.Module):
-    def __init__(self, inplanes, planes, cont_dim, reuse=False):
+    def __init__(self, in_planes, out_planes, z_planes):
         super(Discriminator, self).__init__()
-        self.conv2d = nn.Conv2d(inplanes, planes, kernel_size=5, stride=2, padding=2)
+        self.conv2d = nn.Conv2d(in_planes, out_planes, kernel_size=5, stride=2, padding=2)
         nn.init.normal_(self.conv2d.weight, std=0.02)
 
         self.lrelu = nn.LeakyReLU(0.2, inplace=True)
-        self.block1 = BasicBlock(planes,   planes*2)
-        self.block2 = BasicBlock(planes*2, planes*4)
-        self.block3 = BasicBlock(planes*4, planes*8)
+        self.block1 = BasicBlock(out_planes,   out_planes*2)
+        self.block2 = BasicBlock(out_planes*2, out_planes*4)
+        self.block3 = BasicBlock(out_planes*4, out_planes*8)
 
         self.linear1 = nn.Linear(8192, 1)
         nn.init.normal_(self.linear1.weight, std=0.02)
@@ -36,7 +36,7 @@ class Discriminator(nn.Module):
         nn.init.normal_(self.linear2.weight, std=0.02)
         nn.init.constant_(self.linear2.bias, val=0.0)
 
-        self.linear3 = nn.Linear(128, cont_dim)
+        self.linear3 = nn.Linear(128, z_planes)
         nn.init.normal_(self.linear3.weight, std=0.02)
         nn.init.constant_(self.linear3.bias, val=0.0)
 

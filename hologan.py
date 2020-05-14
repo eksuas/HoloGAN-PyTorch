@@ -1,55 +1,85 @@
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
+
 from torch import nn
+from torch.optim import Adam
 from torch.autograd import Variable
+from torchvision import datasets, transforms
+
 from discriminator import Discriminator
 from generator import Generator
 
-class HoloGAN(nn.Module):
-    def __init__(self, input_height=108, input_width=108 ,output_height=64, output_width=64,
-                 crop=True, gf_dim=64, df_dim=64, c_dim=3,
-                 dataset_name='lsun', input_fname_pattern='*.webp', **kwargs):
+class HoloGAN():
+    def __init__(self, args):
         super(HoloGAN, self).__init__()
-        # TODO: bunlardan hangileri bize lazım olacak bilmiyorum, elemek gerekebilir
-        self.crop = crop
 
-        self.input_height = input_height
-        self.input_width = input_width
-        self.output_height = output_height
-        self.output_width = output_width
+        torch.manual_seed(args.seed)
+        use_cuda = args.gpu and torch.cuda.is_available()
+        args.device = torch.device('cuda' if use_cuda else 'cpu')
 
-        self.gf_dim = gf_dim
-        self.df_dim = df_dim
-        self.c_dim = c_dim
+        # model configurations
+        self.discriminator = Discriminator(in_planes=3,  out_planes=64, z_planes=args.z_dim)
+        self.generator     = Generator    (in_planes=64, out_planes=3,  z_planes=args.z_dim)
 
+        # optimizer configurations
+        self.optimizer_discriminator = Adam(self.discriminator.parameters(),
+                                            lr=args.d_eta, betas=(args.beta1, args.beta2))
+        self.optimizer_generator = Adam(self.generator.parameters(),
+                                        lr=args.d_eta, betas=(args.beta1, args.beta2))
+
+        # TODO: create result folder
+
+        # TODO: create model folder
+
+        # TODO: continue to broken training
+
+    def train(self, args):
+        train_loader = self.load_dataset(args)
+        tensor = torch.cuda.FloatTensor if args.device == "cuda" else torch.FloatTensor
         self.view_in = 6
-        self.z_dim = kwargs["z_dim"]
 
-        self.tensor = torch.cuda.FloatTensor if kwargs["device"] == "cuda" else torch.FloatTensor
+        for epoch in range(1, args.max_epochs + 1):
+            print('{:3d}: '.format(epoch), end='')
+            losses = []
+            self.generator.train()
+            self.discriminator.train()
+            for data, _ in train_loader:
+                data = data.to(args.device)
+                #optimizer.zero_grad()
 
-        # TODO: in feature we may need to transform the weigts of our layers to check the exact results
-        self.discriminator = Discriminator(inplanes=self.c_dim, planes=df_dim, cont_dim=kwargs["z_dim"], reuse=False)
+                z = Variable(tensor(np.random.normal(size=(args.batch_size, args.z_dim))))
+                print("generator \n", self.generator(z).shape)
+                print("discriminator \n", self.discriminator(data))
 
-        # TODO: buradaki z değişkeni batch ile değişecek yani forwardda olmalı aslında
-        self.generator = Generator(self.z_dim, self.gf_dim, self.c_dim)
+                #loss = F.cross_entropy(pred, target)
 
+                #losses.append(float(loss))
+                #loss.backward()
+                #optimizer.step()
+
+        plt.show()
+
+    def load_dataset(self, args):
+        """dataset loader.
+
+        This loads the dataset.
         """
-        self.dataset_name = dataset_name
-        self.input_fname_pattern = input_fname_pattern
-        self.data = glob.glob(os.path.join(IMAGE_PATH, self.input_fname_pattern))
-        self.checkpoint_dir = LOGDIR
-        """
+        kwargs = {'num_workers': 2, 'pin_memory': True} if args.device == 'cuda' else {}
 
-    def forward(self, x):
-        batch_size = x.shape[0]
-        print((batch_size, self.z_dim))
-        z = Variable(self.tensor(np.random.normal(0, 1, (batch_size, self.z_dim))))
-        return self.generator(z)
+        if args.dataset == 'celebA':
+            root = '../dataset/fake/celebA'
 
+            transform = transforms.Compose([\
+                transforms.CenterCrop(108),
+                transforms.Resize(64),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))])
 
-    # TODO: def generator():
+            trainset = datasets.ImageFolder(root=root, transform=transform)
+            #trainset = datasets.ImageFolder(root=root+'/train', transform=transform)
+            #testset = datasets.ImageFolder(root=root+'/val', transform=transform)
 
-
-    # TODO: def train():
-
-    # TODO: def sample():
+        train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size,\
+                        shuffle=True, **kwargs)
+        return train_loader

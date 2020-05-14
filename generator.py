@@ -69,7 +69,7 @@ def AdaIn(features, scale, bias):
     return normalized
 
 class Generator(nn.Module):
-    def __init__(self, z_planes, in_planes, out_planes, reuse=False):
+    def __init__(self, in_planes, out_planes, z_planes):
         super(Generator, self).__init__()
         # TODO: aşağıdaki none lar batch i temsil ediyor, forward da işimizi görür
         # self.view_in = tf.placeholder(tf.float32, [None, 6], name='view_in')
