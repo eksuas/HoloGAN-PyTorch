@@ -44,7 +44,7 @@ def initializer():
     args.device = torch.device('cuda' if use_cuda else 'cpu')
 
     # model configurations
-    model = HoloGAN(z_dim = args.z_dim)
+    model = HoloGAN(**vars(args))
 
     # optimizer configurations
     optimizer = Adam(model.parameters(), lr=args.d_eta, betas=(args.beta1, args.beta2))

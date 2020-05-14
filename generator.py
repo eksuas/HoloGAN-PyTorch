@@ -9,11 +9,11 @@ class Z_Mapping(nn.Module):
         self.linear1 = nn.Linear(z_dimension, output_channel * 2)
         nn.init.normal_(self.linear1.weight, std=0.02)
         nn.init.constant_(self.linear1.bias, val=0.0)
-        self.relu = nn.ReLU()
+        self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
         out = self.relu(self.linear1(x))
-        return out[:, :output_channel], out[:, output_channel:]
+        return out[:, :self.output_channel], out[:, self.output_channel:]
 
 
 # algoritması test edilerek geliştirildi
@@ -30,9 +30,10 @@ def AdaIn(features, scale, bias):
     # if feature is 4D, the interval will be [1, 2]
     # if feature is 5D, the interval will be [1, 2, 3]
     first = features.shape[0]
-    last = features.shape[-1]
-    interval = list(range(len(features.shape)))[1:-1]
-    new_shape = tuple([first] + [1] * len(interval) + [last])
+    last = features.shape[1]
+    interval = list(range(len(features.shape)))[2:]
+
+    new_shape = tuple(list(features.shape)[:2] + [1] * len(interval))
     mean = features.mean(interval).reshape(new_shape)
     variance = features.var(interval).reshape(new_shape)
 
@@ -44,33 +45,32 @@ def AdaIn(features, scale, bias):
     normalized += bias_broadcast
     return normalized
 
+
 def conv_out_size_same(size, stride):
     return int(math.ceil(float(size) / float(stride)))
 
 class BasicBlock(nn.Module):
     """Basic Block defition of the Generator.
     """
-    def __init__(self, inplanes, planes):
+    def __init__(self, z_planes, gf_dim):
         super(BasicBlock, self).__init__()
-        # TODO: şimdilik harici weight initializingi desteklemiyoruz
-        self.conv2d = nn.Conv2d(inplanes, planes, kernel_size=4)
-        nn.init.normal_(self.conv2d.weight, std=0.02)
-        self.lrelu = nn.LeakyReLU(negative_slope=0.2)
+        self.convTranspose3d = nn.ConvTranspose3d(512, gf_dim*2, kernel_size=3,
+                                                  stride=2, output_padding=1, padding=1, bias=True)
 
-        # TODO: aşağıdaki iki method CycleGAN'dan alınmış
-        # TODO: spectral_norm da bu kullanılmış initializer=tf.truncated_normal_initializer()
-        # self.spectral_norm = spectral_norm()
-        #self.instance_norm = nn.InstanceNorm2d()
+        nn.init.normal_(self.convTranspose3d.weight, std=0.02)
+        nn.init.constant_(self.convTranspose3d.bias, val=0.0)
 
-    def forward(self, x):
-        out = self.Conv2d(x)
-        out = spectral_norm(out)
-        out = nn.InstanceNorm2d(out)
-        out = self.lrelu(out)
-        return out
+        self.z_mapping1 = Z_Mapping(z_planes, gf_dim*1)
+
+    def forward(self, h, z):
+        h = self.convTranspose3d(h)
+        s, b = self.z_mapping2(z)
+        h = AdaIn(h, s, b)
+        h = self.relu(h)
+        return h
 
 class Generator(nn.Module):
-    def __init__(self, z, gf_dim, reuse=False):
+    def __init__(self, z_planes, gf_dim, c_dim, reuse=False):
         super(Generator, self).__init__()
         # TODO: aşağıdaki none lar batch i temsil ediyor, forward da işimizi görür
         # self.view_in = tf.placeholder(tf.float32, [None, 6], name='view_in')
@@ -82,79 +82,100 @@ class Generator(nn.Module):
         # batch_size = tf.shape(z)[0]
         # TODO: bu kısıma gerçekten gerek var mı emin değilim bunlar forward ile halledilebilir gibi
         s_h, s_w, s_d = 64, 64, 64
-        #s_h2, s_w2, s_d2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2), conv_out_size_same(s_d, 2)
-        #s_h4, s_w4, s_d4 = conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2), conv_out_size_same(s_d2, 2)
-        #s_h8, s_w8, s_d8 = conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2), conv_out_size_same(s_d4, 2)
-        #s_h16, s_w16, s_d16 = conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2), conv_out_size_same(s_d8, 2)
 
         # TODO: burada float değerler olabilirdi, ama biz sadece goal doğrultusunda bir convensionı destekliyoruz
         # TODO: .to(args.device) eklenmeli çok önemli cuda training için
 
-        self.w16 = torch.empty((s_h//16, s_w//16, s_d//16, gf_dim * 8)).normal_(std=0.02)
+        self.w16 = torch.empty((gf_dim * 8, s_h//16, s_w//16, s_d//16)).normal_(std=0.02)
+        self.z_mapping = Z_Mapping(z_planes, gf_dim*8)
+        self.relu = nn.ReLU(inplace=True)
 
-        self.z_mapping = Z_Mapping(z, gf_dim*8)
+        self.convTranspose3d2 = nn.ConvTranspose3d(512, gf_dim*2, kernel_size=3,
+                                                  stride=2, output_padding=1, padding=1, bias=True)
+        nn.init.normal_(self.convTranspose3d2.weight, std=0.02)
+        nn.init.constant_(self.convTranspose3d2.bias, val=0.0)
+        self.z_mapping2 = Z_Mapping(z_planes, gf_dim*2)
+
+
+        self.convTranspose3d1 = nn.ConvTranspose3d(128, gf_dim*1, kernel_size=3,
+                                                  stride=2, output_padding=1, padding=1, bias=True)
+        nn.init.normal_(self.convTranspose3d1.weight, std=0.02)
+        nn.init.constant_(self.convTranspose3d1.bias, val=0.0)
+        self.z_mapping1 = Z_Mapping(z_planes, gf_dim*1)
+
+        self.convTranspose2d16 = nn.ConvTranspose2d(1024, gf_dim*16, kernel_size=1,
+                                                  stride=1, bias=True)
+        nn.init.normal_(self.convTranspose2d16.weight, std=0.02)
+        nn.init.constant_(self.convTranspose2d16.bias, val=0.0)
+
+
+        self.convTranspose2d4 = nn.ConvTranspose2d(1024, gf_dim*4, kernel_size=4,
+                                                  stride=2, padding=1, bias=True)
+        nn.init.normal_(self.convTranspose2d4.weight, std=0.02)
+        nn.init.constant_(self.convTranspose2d4.bias, val=0.0)
+
+
+        self.convTranspose2d1 = nn.ConvTranspose2d(256, gf_dim*1, kernel_size=4,
+                                                  stride=2, padding=1, bias=True)
+        nn.init.normal_(self.convTranspose2d1.weight, std=0.02)
+        nn.init.constant_(self.convTranspose2d1.bias, val=0.0)
+
+        self.convTranspose2d = nn.ConvTranspose2d(64, c_dim, kernel_size=4,
+                                                  stride=1, padding=1, bias=True)
+        nn.init.normal_(self.convTranspose2d.weight, std=0.02)
+        nn.init.constant_(self.convTranspose2d.bias, val=0.0)
+
+
+        self.z_mapping1 = Z_Mapping(z_planes, gf_dim*1)
+        self.z_mapping4 = Z_Mapping(z_planes, gf_dim*4)
+        self.z_mapping8 = Z_Mapping(z_planes, gf_dim*8)
+
+        self.tanh = nn.Tanh()
 
     def forward(self, x):
-        # bundan emin değilim test edelim
+        # bu kısım backward phase da çalışabilir mi emin değilim
         batch_size = x.shape[0]
-        new_shape = tuple([1] + list(self.w16.shape))
-        w_tile = self.w16.reshape(new_shape)
+        w_tile = self.w16.reshape(tuple([1] + list(self.w16.shape)))
         new_shape = list(w_tile.shape)
         new_shape[0] *= batch_size
         new_shape = tuple(new_shape)
-        w_tile = w_tile.view(-1, 1).repeat(batch_size, 1, 1, 1, 1).view(new_shape)
+        w_tile = w_tile.repeat(batch_size, 1, 1, 1, 1).view(new_shape)
 
-        s0, b0 = self.z_mapping(x)
+        s0, b0 = self.z_mapping8(x)
         h0 = AdaIn(w_tile, s0, b0)
-        h0 = nn.Relu(h0)
+        h0 = self.relu(h0)
 
-        return h0
+        h1 = self.convTranspose3d2(h0)
+        s1, b1 = self.z_mapping2(x)
+        h1 = AdaIn(h1, s1, b1)
+        h1 = self.relu(h1)
 
-    """
-      with tf.variable_scope("generator") as scope:
-          if reuse:
-              scope.reuse_variables()
-          #A learnt constant "template"
-          with tf.variable_scope('g_w_constant'):
-              w = tf.get_variable('w', [s_h16, s_w16, s_d16, self.gf_dim * 8], initializer=tf.random_normal_initializer(stddev=0.02))
-              w_tile = tf.tile(tf.expand_dims(w, 0), (batch_size, 1, 1, 1, 1))
-              s0, b0 = self.z_mapping_function(z, self.gf_dim * 8, 'g_z0')
-              h0 = AdaIn(w_tile, s0, b0)
-              h0 = tf.nn.relu(h0)
+        h2 = self.convTranspose3d1(h1)
+        s2, b2 = self.z_mapping1(x)
+        h2 = AdaIn(h2, s2, b2)
+        h2 = self.relu(h2)
 
-          h1= deconv3d(h0, [batch_size, s_h8, s_w8, s_d8, self.gf_dim * 2], k_h=3, k_d=3, k_w=3, name='g_h1')
-          s1, b1 = self.z_mapping_function(z, self.gf_dim * 2, 'g_z1')
-          h1 = AdaIn(h1, s1, b1)
-          h1 = tf.nn.relu(h1)
+        # h2_rotated = tf_3D_transform(h2, view_in, 16, 16)
+        # h2_rotated = transform_voxel_to_match_image(h2_rotated)
 
-          h2 = deconv3d(h1, [batch_size, s_h4, s_w4, s_d4, self.gf_dim * 1], k_h=3, k_d=3, k_w=3, name='g_h2')
-          s2, b2 = self.z_mapping_function(z, self.gf_dim * 1, 'g_z2')
-          h2 = AdaIn(h2, s2, b2)
-          h2 = tf.nn.relu(h2)
+        h2_rotated = h2
+        h2_2d = h2.reshape(batch_size, -1, 16, 16)
+        h3 = self.convTranspose2d16(h2_2d)
+        h3 = self.relu(h3)
 
-          #=============================================================================================================
-          h2_rotated = tf_3D_transform(h2, view_in, 16, 16)
-          h2_rotated = transform_voxel_to_match_image(h2_rotated)
-          #=============================================================================================================
-          # Collapsing depth dimension
-          h2_2d = tf.reshape(h2_rotated, [batch_size, s_h4, s_w4, 16 * self.gf_dim])
-          # 1X1 convolution
-          h3 = deconv2d(h2_2d, [batch_size, s_h4, s_w4, self.gf_dim * 16], k_h=1, k_w=1, d_h=1, d_w=1, name='g_h3')
-          h3 = tf.nn.relu(h3)
-          #=============================================================================================================
+        h4 = self.convTranspose2d4(h3)
+        s4, b4 = self.z_mapping4(x)
+        h4 = AdaIn(h4, s4, b4)
+        h4 = self.relu(h4)
 
-          h4  = deconv2d(h3, [batch_size, s_h2, s_w2, self.gf_dim * 4], k_h=4, k_w=4, name='g_h4')
-          s4, b4 = self.z_mapping_function(z, self.gf_dim * 4, 'g_z4')
-          h4  = AdaIn(h4, s4, b4)
-          h4  = tf.nn.relu(h4)
+        h5 = self.convTranspose2d1(h4)
+        s5, b5 = self.z_mapping1(x)
+        h5 = AdaIn(h5, s5, b5)
+        h5 = self.relu(h5)
 
-          h5 = deconv2d(h4, [batch_size, s_h, s_w, self.gf_dim], k_h=4, k_w=4, name='g_h5')
-          s5, b5 = self.z_mapping_function(z, self.gf_dim, 'g_z5')
-          h5 = AdaIn(h5, s5, b5)
-          h5 = tf.nn.relu(h5)
+        print("h5.shape", h5.shape)
+        h6 = self.convTranspose2d(h5)
+        h6 = self.tanh(h6)
 
-          h6 = deconv2d(h5, [batch_size, s_h, s_w, self.c_dim], k_h=4, k_w=4, d_h=1, d_w=1, name='g_h6')
-
-          output = tf.nn.tanh(h6, name="output")
-          return output
-    """
+        print("h6.shape", h6.shape)
+        return h6
