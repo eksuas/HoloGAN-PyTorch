@@ -186,7 +186,6 @@ class Generator(nn.Module):
         return transformed
 
     def interpolation(self, voxel_array, x, y, z, out_shape):
-
         batch_size, n_channels, height, width, depth = voxel_array.shape
         _, out_channel, out_height, out_width, out_depth = out_shape
 
@@ -209,9 +208,9 @@ class Generator(nn.Module):
         z0 = torch.clamp(z0, 0, max_z)
         z1 = torch.clamp(z1, 0, max_z)
 
-        x = torch.arange(batch_size) * width * height * depth
         rep = torch.ones(1, out_height * out_width * out_depth).long()
-        base = torch.matmul(x.reshape(-1, 1), rep).reshape(-1)
+        base = torch.arange(batch_size) * width * height * depth
+        base = torch.matmul(base.reshape(-1, 1), rep).reshape(-1)
 
         #Find the Z element of each index
         base_z0 = base + z0 * width * height
@@ -245,7 +244,7 @@ class Generator(nn.Module):
         If = voxel_flat[idx_f]
         Ig = voxel_flat[idx_g]
         Ih = voxel_flat[idx_h]
-
+        
         #First slice XY along Z where z=0
         wa = ((x1 - x) * (y1 - y) * (z1 - z)).unsqueeze(1)
         wb = ((x1 - x) * (y - y0) * (z1 - z)).unsqueeze(1)

@@ -109,7 +109,7 @@ class HoloGAN():
                   "q_loss": round(np.mean(batch["q"]), 4)}
 
         # print the training results of epoch
-        print("time: {:.4f}, d_loss: {:.4f}, g_loss: {:.4f}, q_loss: {:.4f}"
+        print("time: {:.2f}sec, d_loss: {:.4f}, g_loss: {:.4f}, q_loss: {:.4f}"
               .format(result["time"], result["d_loss"], result["g_loss"], result["q_loss"]))
         return result
 
