@@ -1,6 +1,10 @@
+import os
+import csv
+import time
 import math
 import torch
 import numpy as np
+import collections
 import matplotlib.pyplot as plt
 
 from torch import nn
@@ -17,11 +21,19 @@ class HoloGAN():
 
         torch.manual_seed(args.seed)
         use_cuda = args.gpu and torch.cuda.is_available()
-        args.device = torch.device('cuda' if use_cuda else 'cpu')
+        args.device = torch.device("cuda" if use_cuda else "cpu")
 
         # model configurations
-        self.discriminator = Discriminator(in_planes=3,  out_planes=64, z_planes=args.z_dim)
-        self.generator     = Generator    (in_planes=64, out_planes=3,  z_planes=args.z_dim)
+        if args.load_dis is None:
+            self.discriminator = Discriminator(in_planes=3, out_planes=64, z_planes=args.z_dim).to(args.device)
+        else:
+            self.discriminator = torch.load(args.load_dis).to(args.device)
+
+        if args.load_gen is None:
+            self.generator = Generator(in_planes=64, out_planes=3, z_planes=args.z_dim).to(args.device)
+        else:
+            self.generator = torch.load(args.load_gen).to(args.device)
+
 
         # optimizer configurations
         self.optimizer_discriminator = Adam(self.discriminator.parameters(),
@@ -29,48 +41,101 @@ class HoloGAN():
         self.optimizer_generator = Adam(self.generator.parameters(),
                                         lr=args.d_lr, betas=(args.beta1, args.beta2))
 
-        # TODO: create result folder
+        # create result folder
+        args.results_dir = "../results/"+args.dataset
+        if not os.path.exists(args.results_dir):
+            os.makedirs(args.results_dir)
 
-        # TODO: create model folder
+        # create history file
+        args.hist_file = open(args.results_dir+"/history.csv", "a", newline="")
+        args.recorder = csv.writer(args.hist_file, delimiter=",")
+        if os.stat(args.results_dir+"/history.csv").st_size == 0:
+            args.recorder.writerow(["epoch", "time", "d_loss", "g_loss", "q_loss"])
 
-        # TODO: continue to broken training
+        # create model folder
+        args.models_dir = "../models/"+args.dataset
+        if not os.path.exists(args.models_dir):
+            os.makedirs(args.models_dir)
+
+        # continue to broken training
+        args.start_epoch = 0
+        while os.path.exists(args.models_dir+"/discriminator.v"+str(args.start_epoch)+".pt") and \
+              os.path.exists(args.models_dir+"/generator.v"+str(args.start_epoch)+".pt"):
+            args.start_epoch += 1
 
     def train(self, args):
-        train_loader = self.load_dataset(args)
-        for epoch in range(1, args.max_epochs + 1):
-            print('{:3d}: '.format(epoch), end='')
-            losses = []
-            self.generator.train()
-            self.discriminator.train()
+        self.train_loader = self.load_dataset(args)
+        for epoch in range(args.start_epoch, args.max_epochs):
+            result = collections.OrderedDict({"epoch":epoch})
+            print("Epoch: [{:2d}] ".format(epoch), end="")
 
-            loss = nn.BCEWithLogitsLoss()
-            for data, _ in train_loader:
+            result.update(self.train_epoch(args))
+            print(result)
+            # validate and keep history at each log interval
+            self.save_history(args, result)
 
-                data = data.to(args.device)
-                # rnd_state = np.random.RandomState(seed)
-                z = self.sample_z(args)
-                view_in = self.sample_view(args)
+            # save model parameters
+            if not args.no_save_model:
+                self.save_model(args, epoch)
 
-                lamb = 0.0
-                self.optimizer_generator.zero_grad()
-                fake = self.generator(z, view_in)
-                d_fake, g_z_pred , g_t_pred = self.discriminator(fake[:,:,:64,:64])
-                gen_loss = loss(d_fake, torch.ones(d_fake.shape))
-                g_z_loss = torch.mean((g_z_pred-z)**2)
-                g_t_loss = torch.mean((g_t_pred-z)**2)
+        # save the model giving the best validation results as a final model
+        if not args.no_save_model:
+            self.save_model(args, args.max_epochs-1, True)
 
-                # if (kwargs['iter']-1) % self.update_g_every == 0:
-                (gen_loss + lamb*(g_z_loss + g_t_loss)).backward()
-                self.optimizer_generator.step()
+    def train_epoch(self, args):
+        batch = {"time":[], "g":[], "d":[], "q":[]}
+        self.generator.train()
+        self.discriminator.train()
+        for idx, (data, _) in enumerate(self.train_loader):
+            print("[{:4d}/{:4d}] ".format(idx, len(self.train_loader)), end="")
+            x = data.to(args.device)
+            # rnd_state = np.random.RandomState(seed)
+            z = self.sample_z(args)
+            view_in = self.sample_view(args)
 
-                self.optimizer_discriminator.zero_grad()
-                d_fake, d_z_pred, d_t_pred = self.discriminator(fake[:,:,:64,:64].detach())
-                d_real, _, _ = self.discriminator(data)
-                d_loss = loss(d_real, torch.ones(d_real.shape)) + loss(d_fake, torch.zeros(d_fake.shape))
-                d_z_loss = torch.mean((d_z_pred-z)**2)
-                d_t_loss = torch.mean((d_t_pred-z)**2)
-                (d_loss + lamb*(d_z_loss + d_t_loss)).backward()
-                self.optimizer_discriminator.step()
+            d_loss, g_loss, q_loss, time = self.train_batch(x, z, view_in, args)
+            batch["d"].append(float(d_loss))
+            batch["g"].append(float(g_loss))
+            batch["q"].append(float(q_loss))
+            batch["time"].append(float(time))
+
+        result = {"time"  : round(np.mean(batch["time"])),
+                  "d_loss": round(np.mean(batch["d"]), 4),
+                  "g_loss": round(np.mean(batch["g"]), 4),
+                  "q_loss": round(np.mean(batch["q"]), 4)}
+
+        # print the training results of epoch
+        print("time: {:.4f}, d_loss: {:.4f}, g_loss: {:.4f}, q_loss: {:.4f}"
+              .format(result["time"], result["d_loss"], result["g_loss"], result["q_loss"]))
+        return result
+
+    def train_batch(self, x, z, view_in, args):
+        start = time.process_time()
+
+        loss = nn.BCEWithLogitsLoss()
+        lamb = 0.0
+        self.optimizer_generator.zero_grad()
+        fake = self.generator(z, view_in)
+        d_fake, g_z_pred , g_t_pred = self.discriminator(fake[:,:,:64,:64])
+        gen_loss = loss(d_fake, torch.ones(d_fake.shape))
+        g_z_loss = torch.mean((g_z_pred-z)**2)
+        g_t_loss = torch.mean((g_t_pred-z)**2)
+
+        # if (kwargs['iter']-1) % self.update_g_every == 0:
+        (gen_loss + lamb*(g_z_loss + g_t_loss)).backward()
+        self.optimizer_generator.step()
+
+        self.optimizer_discriminator.zero_grad()
+        d_fake, d_z_pred, d_t_pred = self.discriminator(fake[:,:,:64,:64].detach())
+        d_real, _, _ = self.discriminator(x)
+        dis_loss = loss(d_real, torch.ones(d_real.shape)) + loss(d_fake, torch.zeros(d_fake.shape))
+        d_z_loss = torch.mean((d_z_pred-z)**2)
+        d_t_loss = torch.mean((d_t_pred-z)**2)
+        (dis_loss + lamb*(d_z_loss + d_t_loss)).backward()
+        self.optimizer_discriminator.step()
+
+        elapsed_time = time.process_time()  - start
+        return float(dis_loss), float(gen_loss), float(g_z_loss + g_t_loss), elapsed_time
 
     def sample(self, args):
         return
@@ -125,3 +190,30 @@ class HoloGAN():
         view[column, 4] = shift_y
         view[column, 5] = shift_z
         return view
+
+    def save_history(self, args, record):
+        """save a record to the history file"""
+        print(record)
+        args.recorder.writerow([str(record[key]) for key in record])
+        args.hist_file.flush()
+
+    def save_model(self, args, epoch, best=False):
+        """save model
+
+        Arguments are
+        * model:    model object.
+        * best:     version number of the best model object.
+
+        This method saves the trained model in pt file.
+        """
+        filename = args.models_dir
+        if best is False:
+            torch.save(self.discriminator, filename+"/discriminator.v"+str(epoch)+".pt")
+            torch.save(self.generator, filename+"/generator.v"+str(epoch)+".pt")
+        else:
+            train_files = os.listdir(args.models_dir)
+            for train_file in train_files:
+                if not train_file.endswith(".v"+str(epoch)+".pt"):
+                    os.remove(os.path.join(args.models_dir, train_file))
+            os.rename(filename+"/discriminator.v"+str(epoch)+".pt", filename+"/discriminator.pt")
+            os.rename(filename+"/generator.v"+str(epoch)+".pt", filename+"/generator.pt")

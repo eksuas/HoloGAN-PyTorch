@@ -34,6 +34,18 @@ def initializer():
     parser.add_argument('--transY-high',    type=int,             default=0)
     parser.add_argument('--transZ-low',     type=int,             default=0)
     parser.add_argument('--transZ-high',    type=int,             default=0)
+    parser.add_argument('--no-save-model',  action='store_true',  default=False,
+                                            help='do not save the current model')
+    parser.add_argument('--load-dis',       type=str,             default=None,     metavar='S',
+                                            help='the path for loading and evaluating discriminator')
+    parser.add_argument('--load-gen',       type=str,             default=None,     metavar='S',
+                                            help='the path for loading and evaluating generator')
+    parser.add_argument('--device',         help=argparse.SUPPRESS)
+    parser.add_argument('--start-epoch',    help=argparse.SUPPRESS)
+    parser.add_argument('--recorder',       help=argparse.SUPPRESS)
+    parser.add_argument('--results-dir',    help=argparse.SUPPRESS)
+    parser.add_argument('--models-dir',     help=argparse.SUPPRESS)
+    parser.add_argument('--hist-file',      help=argparse.SUPPRESS)
     #pylint: enable=C0326, C0330
     return parser.parse_args()
 
