@@ -1,10 +1,14 @@
+"""
+HoloGAN implementation in PyTorch
+May 17, 2020
+"""
 import os
 import csv
 import time
 import math
+import collections
 import torch
 import numpy as np
-import collections
 #import matplotlib.pyplot as plt
 
 from torch import nn
@@ -16,6 +20,12 @@ from discriminator import Discriminator
 from generator import Generator
 
 class HoloGAN():
+    """HoloGAN.
+
+    HoloGAN model is the Unsupervised learning of 3D representations from natural images.
+    The paper can be found in https://www.monkeyoverflow.com/hologan-unsupervised-learning-\
+    of-3d-representations-from-natural-images/
+    """
     def __init__(self, args):
         super(HoloGAN, self).__init__()
 
@@ -25,21 +35,25 @@ class HoloGAN():
 
         # model configurations
         if args.load_dis is None:
-            self.discriminator = Discriminator(in_planes=3, out_planes=64, z_planes=args.z_dim).to(args.device)
+            self.discriminator = Discriminator(in_planes=3, out_planes=64,
+                                               z_planes=args.z_dim).to(args.device)
         else:
             self.discriminator = torch.load(args.load_dis).to(args.device)
 
         if args.load_gen is None:
-            self.generator = Generator(in_planes=64, out_planes=3, z_planes=args.z_dim).to(args.device)
+            self.generator = Generator(in_planes=64, out_planes=3,
+                                       z_planes=args.z_dim).to(args.device)
         else:
             self.generator = torch.load(args.load_gen).to(args.device)
-
 
         # optimizer configurations
         self.optimizer_discriminator = Adam(self.discriminator.parameters(),
                                             lr=args.d_lr, betas=(args.beta1, args.beta2))
         self.optimizer_generator = Adam(self.generator.parameters(),
                                         lr=args.d_lr, betas=(args.beta1, args.beta2))
+
+        # Load dataset
+        self.train_loader = self.load_dataset(args)
 
         # create result folder
         args.results_dir = "./results/"+args.dataset
@@ -69,7 +83,10 @@ class HoloGAN():
             os.makedirs(args.samples_dir)
 
     def train(self, args):
-        self.train_loader = self.load_dataset(args)
+        """HoloGAN trainer
+
+        This method train the HoloGAN model.
+        """
         for epoch in range(args.start_epoch, args.max_epochs):
             result = collections.OrderedDict({"epoch":epoch})
             print("Epoch: [{:2d}] ".format(epoch), end="")
@@ -87,61 +104,77 @@ class HoloGAN():
             self.save_model(args, args.max_epochs-1, True)
 
     def train_epoch(self, args):
+        """train an epoch
+
+        This method train an epoch.
+        """
         batch = {"time":[], "g":[], "d":[], "q":[]}
         self.generator.train()
         self.discriminator.train()
         for idx, (data, _) in enumerate(self.train_loader):
-            print("[{:4d}/{:4d}] ".format(idx, len(self.train_loader)), end="")
+            print("[{:3d}/{:3d}] ".format(idx, len(self.train_loader)), end="")
             x = data.to(args.device)
             # rnd_state = np.random.RandomState(seed)
             z = self.sample_z(args)
             view_in = self.sample_view(args)
 
-            d_loss, g_loss, q_loss, time = self.train_batch(x, z, view_in, args)
+            d_loss, g_loss, q_loss, elapsed_time = self.train_batch(x, z, view_in, args)
             batch["d"].append(float(d_loss))
             batch["g"].append(float(g_loss))
             batch["q"].append(float(q_loss))
-            batch["time"].append(float(time))
+            batch["time"].append(float(elapsed_time))
+
+            # print the training results of batch
+            print("time: {:.2f}sec, d_loss: {:.4f}, g_loss: {:.4f}, q_loss: {:.4f}"
+                  .format(elapsed_time, float(d_loss), float(g_loss), float(q_loss)))
 
         result = {"time"  : round(np.mean(batch["time"])),
                   "d_loss": round(np.mean(batch["d"]), 4),
                   "g_loss": round(np.mean(batch["g"]), 4),
                   "q_loss": round(np.mean(batch["q"]), 4)}
-
-        # print the training results of epoch
-        print("time: {:.2f}sec, d_loss: {:.4f}, g_loss: {:.4f}, q_loss: {:.4f}"
-              .format(result["time"], result["d_loss"], result["g_loss"], result["q_loss"]))
         return result
 
     def train_batch(self, x, z, view_in, args):
-        start = time.process_time()
+        """train the given batch
 
+        Arguments are
+        * x:        images in the batch.
+        * z:        latent variables in the batch.
+        * view_in:  3D transformation parameters.
+
+        This method train the given batch and return the resulting loss values.
+        """
+        start = time.process_time()
         loss = nn.BCEWithLogitsLoss()
-        lamb = 0.0
         self.optimizer_generator.zero_grad()
         fake = self.generator(z, view_in)
-        d_fake, g_z_pred , g_t_pred = self.discriminator(fake[:,:,:64,:64])
+        d_fake, g_z_pred, g_t_pred = self.discriminator(fake[:, :, :64, :64])
         gen_loss = loss(d_fake, torch.ones(d_fake.shape))
         g_z_loss = torch.mean((g_z_pred-z)**2)
         g_t_loss = torch.mean((g_t_pred-z)**2)
 
         # if (kwargs['iter']-1) % self.update_g_every == 0:
-        (gen_loss + lamb*(g_z_loss + g_t_loss)).backward()
+        (gen_loss + args.lambda_latent * (g_z_loss + g_t_loss)).backward()
         self.optimizer_generator.step()
 
         self.optimizer_discriminator.zero_grad()
-        d_fake, d_z_pred, d_t_pred = self.discriminator(fake[:,:,:64,:64].detach())
+        d_fake, d_z_pred, d_t_pred = self.discriminator(fake[:, :, :64, :64].detach())
         d_real, _, _ = self.discriminator(x)
         dis_loss = loss(d_real, torch.ones(d_real.shape)) + loss(d_fake, torch.zeros(d_fake.shape))
         d_z_loss = torch.mean((d_z_pred-z)**2)
         d_t_loss = torch.mean((d_t_pred-z)**2)
-        (dis_loss + lamb*(d_z_loss + d_t_loss)).backward()
+        (dis_loss + args.lambda_latent * (d_z_loss + d_t_loss)).backward()
         self.optimizer_discriminator.step()
 
         elapsed_time = time.process_time()  - start
         return float(dis_loss), float(gen_loss), float(g_z_loss + g_t_loss), elapsed_time
 
     def sample(self, args):
+        """HoloGAN sampler
+
+        This samples images in the given configuration from the HoloGAN.
+        Images can be found in the "args.samples_dir" directory.
+        """
         z = self.sample_z(args)
         if args.rotate_azimuth:
             low, high, step = args.azimuth_low, args.azimuth_high, 10
@@ -191,21 +224,34 @@ class HoloGAN():
         return train_loader
 
     def sample_z(self, args):
+        """Latent variables sampler
+
+        This samples latent variables from the uniform distribution [-1,1].
+        """
         tensor = torch.cuda.FloatTensor if args.device == "cuda" else torch.FloatTensor
         size = (args.batch_size, args.z_dim)
         return Variable(tensor(np.random.uniform(-1., 1., size)), requires_grad=True)
 
     def sample_view(self, args):
+        """Transformation parameters sampler
+
+        This samples view (or transformation parameters) from the given configuration.
+        """
         # the azimuth angle (theta) is around y
-        theta = np.random.randint(args.azimuth_low, args.azimuth_high, (args.batch_size)).astype(np.float)
+        theta = np.random.randint(args.azimuth_low, args.azimuth_high,
+                                  (args.batch_size)).astype(np.float)
         theta = (theta - 90.) * math.pi / 180.0
         # the elevation angle (gamma) is around x
-        gamma = np.random.randint(args.elevation_low, args.elevation_high, (args.batch_size)).astype(np.float)
+        gamma = np.random.randint(args.elevation_low, args.elevation_high,
+                                  (args.batch_size)).astype(np.float)
         gamma = (90. - gamma) * math.pi / 180.0
         scale = float(np.random.uniform(args.scale_low, args.scale_high))
-        shift_x = args.transX_low + np.random.random(args.batch_size) * (args.transX_high - args.transX_low)
-        shift_y = args.transY_low + np.random.random(args.batch_size) * (args.transY_high - args.transY_low)
-        shift_z = args.transZ_low + np.random.random(args.batch_size) * (args.transZ_high - args.transZ_low)
+        shift_x = args.transX_low + np.random.random(args.batch_size) * \
+                  (args.transX_high - args.transX_low)
+        shift_y = args.transY_low + np.random.random(args.batch_size) * \
+                  (args.transY_high - args.transY_low)
+        shift_z = args.transZ_low + np.random.random(args.batch_size) * \
+                  (args.transZ_high - args.transZ_low)
 
         view = np.zeros((args.batch_size, 6))
         column = np.arange(0, args.batch_size)
@@ -226,10 +272,10 @@ class HoloGAN():
         """save model
 
         Arguments are
-        * model:    model object.
-        * best:     version number of the best model object.
+        * epoch:   epoch number.
+        * best:    if the model is in the final epoch.
 
-        This method saves the trained model in pt file.
+        This method saves the trained discriminator and generator in a pt file.
         """
         filename = args.models_dir
         if best is False:

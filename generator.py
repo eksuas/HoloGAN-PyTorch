@@ -1,3 +1,7 @@
+"""
+HoloGAN Generator implementation in PyTorch
+May 17, 2020
+"""
 from torch import nn
 import torch
 
@@ -20,7 +24,7 @@ class BasicBlock(nn.Module):
     def __init__(self, z_planes, in_planes, out_planes, transpose_dim):
         super(BasicBlock, self).__init__()
         if transpose_dim == 2:
-            self.convTranspose = nn.ConvTranspose2d(in_planes,out_planes, kernel_size=4,
+            self.convTranspose = nn.ConvTranspose2d(in_planes, out_planes, kernel_size=4,
                                                     stride=2, padding=1, bias=True)
         else:
             self.convTranspose = nn.ConvTranspose3d(in_planes, out_planes, kernel_size=3,
@@ -45,15 +49,19 @@ class Generator(nn.Module):
         self.weight = torch.empty((in_planes*8, 4, 4, 4)).normal_(std=0.02)
 
         self.zMapping = ZMapping(z_planes, in_planes*8)
-        self.block1 = BasicBlock(z_planes, in_planes=in_planes*8,  out_planes=in_planes*2, transpose_dim=3)
-        self.block2 = BasicBlock(z_planes, in_planes=in_planes*2,  out_planes=in_planes,   transpose_dim=3)
+        self.block1 = BasicBlock(z_planes, in_planes=in_planes*8, out_planes=in_planes*2,
+                                 transpose_dim=3)
+        self.block2 = BasicBlock(z_planes, in_planes=in_planes*2, out_planes=in_planes,
+                                 transpose_dim=3)
 
         self.convTranspose2d1 = nn.ConvTranspose2d(in_planes*16, in_planes*16, kernel_size=1)
         nn.init.normal_(self.convTranspose2d1.weight, std=0.02)
         nn.init.constant_(self.convTranspose2d1.bias, val=0.0)
 
-        self.block3 = BasicBlock(z_planes, in_planes=in_planes*16, out_planes=in_planes*4, transpose_dim=2)
-        self.block4 = BasicBlock(z_planes, in_planes=in_planes*4,  out_planes=in_planes,   transpose_dim=2)
+        self.block3 = BasicBlock(z_planes, in_planes=in_planes*16, out_planes=in_planes*4,
+                                 transpose_dim=2)
+        self.block4 = BasicBlock(z_planes, in_planes=in_planes*4, out_planes=in_planes,
+                                 transpose_dim=2)
 
         self.convTranspose2d2 = nn.ConvTranspose2d(in_planes, out_planes, kernel_size=4, padding=1)
         nn.init.normal_(self.convTranspose2d2.weight, std=0.02)
@@ -65,7 +73,7 @@ class Generator(nn.Module):
     def forward(self, z, view_in):
         batch_size = z.shape[0]
         #print("batch_size:", batch_size)
-        w_tile = self.weight.unsqueeze(0).repeat(batch_size,1,1,1,1)
+        w_tile = self.weight.unsqueeze(0).repeat(batch_size, 1, 1, 1, 1)
         #print("w_tile.shape:", w_tile.shape)
         s0, b0 = self.zMapping(z)
         #print("s0.shape:", s0.shape)
@@ -111,14 +119,16 @@ class Generator(nn.Module):
             torch.cat([theta.cos().float(),  zeros,  -theta.sin().float(),  zeros], axis=2),
             torch.cat([zeros,                ones,   zeros,                 zeros], axis=2),
             torch.cat([theta.sin().float(),  zeros,  theta.cos().float(),   zeros], axis=2),
-            torch.cat([zeros,                zeros,  zeros,                 ones],  axis=2)], axis=1)
+            torch.cat([zeros,                zeros,  zeros,                 ones],  axis=2)],
+                      axis=1)
 
         # Rotation Z matrix
         rot_z = torch.cat([
             torch.cat([gamma.cos().float(),  gamma.sin().float(),   zeros,  zeros], axis=2),
             torch.cat([-gamma.sin().float(), gamma.cos().float(),   zeros,  zeros], axis=2),
             torch.cat([zeros,                zeros,                 ones,   zeros], axis=2),
-            torch.cat([zeros,                zeros,                 zeros,  ones],  axis=2)], axis=1)
+            torch.cat([zeros,                zeros,                 zeros,  ones],  axis=2)],
+                      axis=1)
 
         rotation_matrix = torch.matmul(rot_z, rot_y)
 
@@ -148,13 +158,12 @@ class Generator(nn.Module):
     def apply_transformation(self, voxel_array, transformation_matrix, size=16, new_size=16):
 
         batch_size = voxel_array.shape[0]
-        target = torch.zeros([batch_size, new_size, new_size, new_size])
         # Aligning the centroid of the object (voxel grid) to origin for rotation,
         # then move the centroid back to the original position of the grid centroid
-        centroid = torch.tensor([[1,0,0, -size * 0.5],
-                                 [0,1,0, -size * 0.5],
-                                 [0,0,1, -size * 0.5],
-                                 [0,0,0,           1]])
+        centroid = torch.tensor([[1, 0, 0, -size * 0.5],
+                                 [0, 1, 0, -size * 0.5],
+                                 [0, 0, 1, -size * 0.5],
+                                 [0, 0, 0,           1]])
         centroid = centroid.reshape(1, 4, 4).repeat(batch_size, 1, 1)
 
         # However, since the rotated grid might be out of bound for the original grid size,
@@ -165,11 +174,13 @@ class Generator(nn.Module):
                                      [0, 0, 0,              1]])
         centroid_new = centroid_new.reshape(1, 4, 4).repeat(batch_size, 1, 1)
 
-        transformed_centoid = torch.matmul(torch.matmul(centroid_new, transformation_matrix), centroid)
+        transformed_centoid = torch.matmul(centroid_new, transformation_matrix)
+        transformed_centoid = torch.matmul(transformed_centoid, centroid)
 
         # TODO: devam eden iki işlemi neden yapıyoruz anlayamadım
         transformed_centoid = transformed_centoid.inverse()
-        transformed_centoid = transformed_centoid[:, 0:3, :] #Ignore the homogenous coordinate so the results are 3D vectors
+        #Ignore the homogenous coordinate so the results are 3D vectors
+        transformed_centoid = transformed_centoid[:, 0:3, :]
 
         grid = self.meshgrid(new_size, new_size, new_size)
         grid = grid.reshape(1, grid.shape[0], grid.shape[1])
@@ -181,13 +192,15 @@ class Generator(nn.Module):
         z_flat = grid_transform[:, 2, :].reshape(-1)
 
         n_channels = voxel_array.shape[1]
+
         out_shape = (batch_size, n_channels, new_size, new_size, new_size)
-        transformed = self.interpolation(voxel_array, x_flat, y_flat, z_flat, out_shape).reshape(out_shape)
+        transformed = self.interpolation(voxel_array, x_flat, y_flat, z_flat, out_shape)
+        transformed = transformed.reshape(out_shape)
         return transformed
 
     def interpolation(self, voxel_array, x, y, z, out_shape):
         batch_size, n_channels, height, width, depth = voxel_array.shape
-        _, out_channel, out_height, out_width, out_depth = out_shape
+        _, _, out_height, out_width, out_depth = out_shape
 
         max_y = height - 1
         max_x = width  - 1
@@ -244,7 +257,7 @@ class Generator(nn.Module):
         If = voxel_flat[idx_f]
         Ig = voxel_flat[idx_g]
         Ih = voxel_flat[idx_h]
-        
+
         #First slice XY along Z where z=0
         wa = ((x1 - x) * (y1 - y) * (z1 - z)).unsqueeze(1)
         wb = ((x1 - x) * (y - y0) * (z1 - z)).unsqueeze(1)
@@ -273,17 +286,16 @@ def AdaIn(features, scale, bias):
     """
     Adaptive instance normalization component. Works with both 4D and 5D tensors
     :features: features to be normalized
-    :scale: scaling factor. This would otherwise be calculated as the sigma from a "style" features in style transfer
-    :bias: bias factor. This would otherwise be calculated as the mean from a "style" features in style transfer
+    :scale: scaling factor. This would otherwise be calculated as the sigma from a
+    "style" features in style transfer
+    :bias: bias factor. This would otherwise be calculated as the mean from a
+    "style" features in style transfer
     """
     # TODO: bu kadar zahmete gerek var mıymış emin değilim
     # TODO: ileri de bu kısım için normalization ve linear layer eklenebilir!
     # if feature is 4D, the interval will be [1, 2]
     # if feature is 5D, the interval will be [1, 2, 3]
-    first = features.shape[0]
-    last = features.shape[1]
     interval = list(range(len(features.shape)))[2:]
-
     new_shape = tuple(list(features.shape)[:2] + [1] * len(interval))
     mean = features.mean(interval).reshape(new_shape)
     variance = features.var(interval).reshape(new_shape)

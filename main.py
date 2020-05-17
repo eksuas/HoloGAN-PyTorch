@@ -1,3 +1,7 @@
+"""
+HoloGAN implementation in PyTorch
+May 17, 2020
+"""
 import argparse
 from hologan import HoloGAN
 
@@ -41,9 +45,11 @@ def initializer():
     parser.add_argument("--rotate-azimuth",     action="store_true", default=False,
                                                 help="rotate the z sampling with azimuth")
     parser.add_argument("--load-dis",           type=str, default=None, metavar="S",
-                                                help="the path for loading and evaluating discriminator")
+                                                help="the path for loading and evaluating \
+                                                discriminator")
     parser.add_argument("--load-gen",           type=str, default=None, metavar="S",
-                                                help="the path for loading and evaluating generator")
+                                                help="the path for loading and evaluating \
+                                                generator")
     parser.add_argument("--device",             help=argparse.SUPPRESS)
     parser.add_argument("--start-epoch",        help=argparse.SUPPRESS)
     parser.add_argument("--recorder",           help=argparse.SUPPRESS)
@@ -55,6 +61,7 @@ def initializer():
     return parser.parse_args()
 
 def main():
+    """Main functionsss"""
     args = initializer()
     model = HoloGAN(args)
     model.train(args)
