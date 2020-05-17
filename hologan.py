@@ -167,9 +167,7 @@ class HoloGAN():
             samples = self.generator(z, view_in).permute(0, 2, 3, 1)
             normalized = ((samples+1.)/2.).detach().numpy()
             image = np.clip(255*normalized, 0, 255).astype(np.uint8)
-            image = image[0]
-            print(image.shape)
-            imsave(os.path.join(args.samples_dir, "samples_{}.png".format(i)), image)
+            imsave(os.path.join(args.samples_dir, "samples_{}.png".format(i)), image[0])
 
     def load_dataset(self, args):
         """dataset loader.
