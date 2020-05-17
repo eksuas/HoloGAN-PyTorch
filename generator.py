@@ -103,8 +103,8 @@ class Generator(nn.Module):
         # TODO: daha efficient olması için ileri de tek bir matrix formatında oluşturabilir
 
         # Rotation Y matrix
-        theta = torch.tensor(view_params[:, 0].reshape(-1, 1, 1))
-        gamma = torch.tensor(view_params[:, 1].reshape(-1, 1, 1))
+        theta = torch.as_tensor(view_params[:, 0].reshape(-1, 1, 1))
+        gamma = torch.as_tensor(view_params[:, 1].reshape(-1, 1, 1))
         ones = torch.ones(theta.shape)
         zeros = torch.zeros(theta.shape)
         rot_y = torch.cat([
@@ -123,7 +123,7 @@ class Generator(nn.Module):
         rotation_matrix = torch.matmul(rot_z, rot_y)
 
         # Scaling matrix
-        scale = torch.tensor(view_params[:, 2].reshape(-1, 1, 1)).float()
+        scale = torch.as_tensor(view_params[:, 2].reshape(-1, 1, 1)).float()
         scaling_matrix = torch.cat([
             torch.cat([scale, zeros,  zeros, zeros], axis=2),
             torch.cat([zeros, scale,  zeros, zeros], axis=2),
@@ -131,9 +131,9 @@ class Generator(nn.Module):
             torch.cat([zeros, zeros,  zeros, ones],  axis=2)], axis=1)
 
         # Translation matrix
-        x_shift = torch.tensor(view_params[:,3].reshape(-1, 1, 1)).float()
-        y_shift = torch.tensor(view_params[:,4].reshape(-1, 1, 1)).float()
-        z_shift = torch.tensor(view_params[:,5].reshape(-1, 1, 1)).float()
+        x_shift = torch.as_tensor(view_params[:,3].reshape(-1, 1, 1)).float()
+        y_shift = torch.as_tensor(view_params[:,4].reshape(-1, 1, 1)).float()
+        z_shift = torch.as_tensor(view_params[:,5].reshape(-1, 1, 1)).float()
         translation_matrix = torch.cat([
             torch.cat([ones,  zeros, zeros, x_shift], axis=2),
             torch.cat([zeros, ones,  zeros, y_shift], axis=2),
@@ -144,7 +144,6 @@ class Generator(nn.Module):
         transformation_matrix = torch.matmul(transformation_matrix, rotation_matrix)
 
         return self.apply_transformation(voxel_array, transformation_matrix, size, new_size)
-
 
     def apply_transformation(self, voxel_array, transformation_matrix, size=16, new_size=16):
 
@@ -185,7 +184,6 @@ class Generator(nn.Module):
         out_shape = (batch_size, n_channels, new_size, new_size, new_size)
         transformed = self.interpolation(voxel_array, x_flat, y_flat, z_flat, out_shape).reshape(out_shape)
         return transformed
-
 
     def interpolation(self, voxel_array, x, y, z, out_shape):
 
@@ -263,7 +261,6 @@ class Generator(nn.Module):
         target = sum([wa * Ia, wb * Ib, wc * Ic, wd * Id,  we * Ie, wf * If, wg * Ig, wh * Ih])
         return target.reshape(out_shape)
 
-
     def meshgrid(self, height, width, depth):
         z, y, x = torch.meshgrid(torch.arange(depth), torch.arange(height), torch.arange(width))
         x_flat = x.reshape(1, -1).float()
@@ -271,8 +268,6 @@ class Generator(nn.Module):
         z_flat = z.reshape(1, -1).float()
         ones = torch.ones(x_flat.shape)
         return torch.cat([x_flat, y_flat, z_flat, ones], axis=0)
-
-
 
 # algoritması test edilerek geliştirildi
 def AdaIn(features, scale, bias):

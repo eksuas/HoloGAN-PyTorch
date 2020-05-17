@@ -5,13 +5,13 @@ import math
 import torch
 import numpy as np
 import collections
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 from torch import nn
 from torch.optim import Adam
 from torch.autograd import Variable
 from torchvision import datasets, transforms
-
+from scipy.misc import imsave
 from discriminator import Discriminator
 from generator import Generator
 
@@ -42,7 +42,7 @@ class HoloGAN():
                                         lr=args.d_lr, betas=(args.beta1, args.beta2))
 
         # create result folder
-        args.results_dir = "../results/"+args.dataset
+        args.results_dir = "./results/"+args.dataset
         if not os.path.exists(args.results_dir):
             os.makedirs(args.results_dir)
 
@@ -53,7 +53,7 @@ class HoloGAN():
             args.recorder.writerow(["epoch", "time", "d_loss", "g_loss", "q_loss"])
 
         # create model folder
-        args.models_dir = "../models/"+args.dataset
+        args.models_dir = "./models/"+args.dataset
         if not os.path.exists(args.models_dir):
             os.makedirs(args.models_dir)
 
@@ -62,6 +62,11 @@ class HoloGAN():
         while os.path.exists(args.models_dir+"/discriminator.v"+str(args.start_epoch)+".pt") and \
               os.path.exists(args.models_dir+"/generator.v"+str(args.start_epoch)+".pt"):
             args.start_epoch += 1
+
+        # create sampling folder
+        args.samples_dir = "./samples/"+args.dataset
+        if not os.path.exists(args.samples_dir):
+            os.makedirs(args.samples_dir)
 
     def train(self, args):
         self.train_loader = self.load_dataset(args)
@@ -138,7 +143,33 @@ class HoloGAN():
         return float(dis_loss), float(gen_loss), float(g_z_loss + g_t_loss), elapsed_time
 
     def sample(self, args):
-        return
+        z = self.sample_z(args)
+        if args.rotate_azimuth:
+            low, high, step = args.azimuth_low, args.azimuth_high, 10
+        elif args.rotate_elevation:
+            low, high, step = args.elevation_low, args.elevation_high, 5
+        else:
+            low, high, step = 0, 10, 1
+
+        for i in range(low, high, step):
+            # Apply only azimuth rotation
+            if args.rotate_azimuth:
+                view_in = torch.tensor([i*math.pi/180, 0, 1.0, 0, 0, 0])
+                view_in = view_in.repeat(args.batch_size, 1)
+            # Apply only elevation rotation
+            elif args.rotate_elevation:
+                view_in = torch.tensor([270*math.pi/180, (90-i)*math.pi/180, 1.0, 0, 0, 0])
+                view_in = view_in.repeat(args.batch_size, 1)
+            # Apply default transformation
+            else:
+                view_in = self.sample_view(args)
+
+            samples = self.generator(z, view_in).permute(0, 2, 3, 1)
+            normalized = ((samples+1.)/2.).detach().numpy()
+            image = np.clip(255*normalized, 0, 255).astype(np.uint8)
+            image = image[0]
+            print(image.shape)
+            imsave(os.path.join(args.samples_dir, "samples_{}.png".format(i)), image)
 
     def load_dataset(self, args):
         """dataset loader.
