@@ -75,7 +75,6 @@ class HoloGAN():
             print("Epoch: [{:2d}] ".format(epoch), end="")
 
             result.update(self.train_epoch(args))
-            print(result)
             # validate and keep history at each log interval
             self.save_history(args, result)
 
@@ -177,15 +176,13 @@ class HoloGAN():
         kwargs = {'num_workers': 2, 'pin_memory': True} if args.device == 'cuda' else {}
 
         if args.dataset == 'celebA':
-            root = '../dataset/fake/celebA'
-
             transform = transforms.Compose([\
                 transforms.CenterCrop(108),
                 transforms.Resize(64),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))])
 
-            trainset = datasets.ImageFolder(root=root, transform=transform)
+            trainset = datasets.ImageFolder(root=args.image_path, transform=transform)
             #trainset = datasets.ImageFolder(root=root+'/train', transform=transform)
             #testset = datasets.ImageFolder(root=root+'/val', transform=transform)
 
@@ -222,7 +219,6 @@ class HoloGAN():
 
     def save_history(self, args, record):
         """save a record to the history file"""
-        print(record)
         args.recorder.writerow([str(record[key]) for key in record])
         args.hist_file.flush()
 
