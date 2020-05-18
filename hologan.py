@@ -42,7 +42,7 @@ class HoloGAN():
 
         if args.load_gen is None:
             self.generator = Generator(in_planes=64, out_planes=3,
-                                       z_planes=args.z_dim).to(args.device)
+                                       z_planes=args.z_dim, gpu=use_cuda).to(args.device)
         else:
             self.generator = torch.load(args.load_gen).to(args.device)
 
@@ -155,7 +155,9 @@ class HoloGAN():
         fake = self.generator(z, view_in)
         _, d_fake, d_z_pred = self.discriminator(fake[:, :, :64, :64])
         _, d_real, _ = self.discriminator(x)
-        dis_loss = loss(d_real, torch.ones(d_real.shape)) + loss(d_fake, torch.zeros(d_fake.shape))
+        one = torch.ones(d_real.shape).to(args.device)
+        zero = torch.zeros(d_fake.shape).to(args.device)
+        dis_loss = loss(d_real, one) + loss(d_fake, zero)
         q_loss = torch.mean((d_z_pred - z)**2)
         (dis_loss + args.lambda_latent * q_loss).backward()
         self.optimizer_discriminator.step()
@@ -163,7 +165,7 @@ class HoloGAN():
         # Update G network
         self.optimizer_generator.zero_grad()
         _, d_fake, g_z_pred = self.discriminator(fake[:, :, :64, :64].detach())
-        gen_loss = loss(d_fake, torch.ones(d_fake.shape))
+        gen_loss = loss(d_fake, one)
         q_loss = torch.mean((g_z_pred - z)**2)
         self.optimizer_generator.step()
 
@@ -171,7 +173,7 @@ class HoloGAN():
         self.optimizer_generator.zero_grad()
         fake = self.generator(z, view_in)
         _, d_fake, g_z_pred = self.discriminator(fake[:, :, :64, :64].detach())
-        gen_loss = loss(d_fake, torch.ones(d_fake.shape))
+        gen_loss = loss(d_fake, one)
         q_loss = torch.mean((g_z_pred - z)**2)
         self.optimizer_generator.step()
 
@@ -239,7 +241,7 @@ class HoloGAN():
         """
         tensor = torch.cuda.FloatTensor if args.device == "cuda" else torch.FloatTensor
         size = (args.batch_size, args.z_dim)
-        return Variable(tensor(np.random.uniform(-1., 1., size)), requires_grad=True)
+        return Variable(tensor(np.random.uniform(-1., 1., size)), requires_grad=True).to(args.device)
 
     def sample_view(self, args):
         """Transformation parameters sampler
