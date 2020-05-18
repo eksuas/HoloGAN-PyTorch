@@ -146,28 +146,34 @@ class HoloGAN():
         """
         start = time.process_time()
         loss = nn.BCEWithLogitsLoss()
-        self.optimizer_generator.zero_grad()
-        fake = self.generator(z, view_in)
-        d_fake, g_z_pred, g_t_pred = self.discriminator(fake[:, :, :64, :64])
-        gen_loss = loss(d_fake, torch.ones(d_fake.shape))
-        g_z_loss = torch.mean((g_z_pred-z)**2)
-        g_t_loss = torch.mean((g_t_pred-z)**2)
 
-        # if (kwargs['iter']-1) % self.update_g_every == 0:
-        (gen_loss + args.lambda_latent * (g_z_loss + g_t_loss)).backward()
-        self.optimizer_generator.step()
-
+        # Update D network
         self.optimizer_discriminator.zero_grad()
-        d_fake, d_z_pred, d_t_pred = self.discriminator(fake[:, :, :64, :64].detach())
-        d_real, _, _ = self.discriminator(x)
+        fake = self.generator(z, view_in)
+        _, d_fake, d_z_pred = self.discriminator(fake[:, :, :64, :64])
+        _, d_real, _ = self.discriminator(x)
         dis_loss = loss(d_real, torch.ones(d_real.shape)) + loss(d_fake, torch.zeros(d_fake.shape))
-        d_z_loss = torch.mean((d_z_pred-z)**2)
-        d_t_loss = torch.mean((d_t_pred-z)**2)
-        (dis_loss + args.lambda_latent * (d_z_loss + d_t_loss)).backward()
+        q_loss = torch.mean((d_z_pred - z)**2)
+        (dis_loss + args.lambda_latent * q_loss).backward()
         self.optimizer_discriminator.step()
 
+        # Update G network
+        self.optimizer_generator.zero_grad()
+        _, d_fake, g_z_pred = self.discriminator(fake[:, :, :64, :64].detach())
+        gen_loss = loss(d_fake, torch.ones(d_fake.shape))
+        q_loss = torch.mean((g_z_pred - z)**2)
+        self.optimizer_generator.step()
+
+        # Run g_optim twice
+        self.optimizer_generator.zero_grad()
+        fake = self.generator(z, view_in)
+        _, d_fake, g_z_pred = self.discriminator(fake[:, :, :64, :64].detach())
+        gen_loss = loss(d_fake, torch.ones(d_fake.shape))
+        q_loss = torch.mean((g_z_pred - z)**2)
+        self.optimizer_generator.step()
+
         elapsed_time = time.process_time()  - start
-        return float(dis_loss), float(gen_loss), float(g_z_loss + g_t_loss), elapsed_time
+        return float(dis_loss), float(gen_loss), float(q_loss), elapsed_time
 
     def sample(self, args):
         """HoloGAN sampler
