@@ -128,8 +128,8 @@ class HoloGAN():
             print("time: {:.2f}sec, d_loss: {:.4f}, g_loss: {:.4f}, q_loss: {:.4f}"
                   .format(elapsed_time, float(d_loss), float(g_loss), float(q_loss)))
 
-            #if (idx % 1000 == 0):
-            #    self.sample(args)
+            if (idx % 1 == 0):
+                self.sample(args)
 
         result = {"time"  : round(np.mean(batch["time"])),
                   "d_loss": round(np.mean(batch["d"]), 4),
@@ -208,7 +208,7 @@ class HoloGAN():
                 view_in = self.sample_view(args)
 
             samples = self.generator(z, view_in).permute(0, 2, 3, 1)
-            normalized = ((samples+1.)/2.).detach().numpy()
+            normalized = ((samples+1.)/2.).cpu().detach().numpy()
             image = np.clip(255*normalized, 0, 255).astype(np.uint8)
             imsave(os.path.join(args.samples_dir, "samples_{}.png".format(i)), image[0])
 
