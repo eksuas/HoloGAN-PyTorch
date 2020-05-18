@@ -116,39 +116,39 @@ class Generator(nn.Module):
         ones = torch.ones(theta.shape)
         zeros = torch.zeros(theta.shape)
         rot_y = torch.cat([
-            torch.cat([theta.cos().float(),  zeros,  -theta.sin().float(),  zeros], axis=2),
-            torch.cat([zeros,                ones,   zeros,                 zeros], axis=2),
-            torch.cat([theta.sin().float(),  zeros,  theta.cos().float(),   zeros], axis=2),
-            torch.cat([zeros,                zeros,  zeros,                 ones],  axis=2)],
-                      axis=1)
+            torch.cat([theta.cos().float(),  zeros,  -theta.sin().float(),  zeros], dim=2),
+            torch.cat([zeros,                ones,   zeros,                 zeros], dim=2),
+            torch.cat([theta.sin().float(),  zeros,  theta.cos().float(),   zeros], dim=2),
+            torch.cat([zeros,                zeros,  zeros,                 ones],  dim=2)],
+                      dim=1)
 
         # Rotation Z matrix
         rot_z = torch.cat([
-            torch.cat([gamma.cos().float(),  gamma.sin().float(),   zeros,  zeros], axis=2),
-            torch.cat([-gamma.sin().float(), gamma.cos().float(),   zeros,  zeros], axis=2),
-            torch.cat([zeros,                zeros,                 ones,   zeros], axis=2),
-            torch.cat([zeros,                zeros,                 zeros,  ones],  axis=2)],
-                      axis=1)
+            torch.cat([gamma.cos().float(),  gamma.sin().float(),   zeros,  zeros], dim=2),
+            torch.cat([-gamma.sin().float(), gamma.cos().float(),   zeros,  zeros], dim=2),
+            torch.cat([zeros,                zeros,                 ones,   zeros], dim=2),
+            torch.cat([zeros,                zeros,                 zeros,  ones],  dim=2)],
+                      dim=1)
 
         rotation_matrix = torch.matmul(rot_z, rot_y)
 
         # Scaling matrix
         scale = torch.as_tensor(view_params[:, 2].reshape(-1, 1, 1)).float()
         scaling_matrix = torch.cat([
-            torch.cat([scale, zeros,  zeros, zeros], axis=2),
-            torch.cat([zeros, scale,  zeros, zeros], axis=2),
-            torch.cat([zeros, zeros,  scale, zeros], axis=2),
-            torch.cat([zeros, zeros,  zeros, ones],  axis=2)], axis=1)
+            torch.cat([scale, zeros,  zeros, zeros], dim=2),
+            torch.cat([zeros, scale,  zeros, zeros], dim=2),
+            torch.cat([zeros, zeros,  scale, zeros], dim=2),
+            torch.cat([zeros, zeros,  zeros, ones],  dim=2)], dim=1)
 
         # Translation matrix
         x_shift = torch.as_tensor(view_params[:,3].reshape(-1, 1, 1)).float()
         y_shift = torch.as_tensor(view_params[:,4].reshape(-1, 1, 1)).float()
         z_shift = torch.as_tensor(view_params[:,5].reshape(-1, 1, 1)).float()
         translation_matrix = torch.cat([
-            torch.cat([ones,  zeros, zeros, x_shift], axis=2),
-            torch.cat([zeros, ones,  zeros, y_shift], axis=2),
-            torch.cat([zeros, zeros, ones,  z_shift], axis=2),
-            torch.cat([zeros, zeros, zeros, ones],    axis=2)], axis=1)
+            torch.cat([ones,  zeros, zeros, x_shift], dim=2),
+            torch.cat([zeros, ones,  zeros, y_shift], dim=2),
+            torch.cat([zeros, zeros, ones,  z_shift], dim=2),
+            torch.cat([zeros, zeros, zeros, ones],    dim=2)], dim=1)
 
         transformation_matrix = torch.matmul(translation_matrix, scaling_matrix)
         transformation_matrix = torch.matmul(transformation_matrix, rotation_matrix)
@@ -214,12 +214,12 @@ class Generator(nn.Module):
         z0 = torch.floor(z).int()
         z1 = z0 + 1
 
-        x0 = torch.clamp(x0, 0, max_x)
-        x1 = torch.clamp(x1, 0, max_x)
-        y0 = torch.clamp(y0, 0, max_y)
-        y1 = torch.clamp(y1, 0, max_y)
-        z0 = torch.clamp(z0, 0, max_z)
-        z1 = torch.clamp(z1, 0, max_z)
+        x0 = torch.clamp(x0, 0, max_x).long()
+        x1 = torch.clamp(x1, 0, max_x).long()
+        y0 = torch.clamp(y0, 0, max_y).long()
+        y1 = torch.clamp(y1, 0, max_y).long()
+        z0 = torch.clamp(z0, 0, max_z).long()
+        z1 = torch.clamp(z1, 0, max_z).long()
 
         rep = torch.ones(1, out_height * out_width * out_depth).long()
         base = torch.arange(batch_size) * width * height * depth
@@ -258,17 +258,24 @@ class Generator(nn.Module):
         Ig = voxel_flat[idx_g]
         Ih = voxel_flat[idx_h]
 
+        x0_f = x0.float()
+        x1_f = x1.float()
+        y0_f = y0.float()
+        y1_f = y1.float()
+        z0_f = z0.float()
+        z1_f = z1.float()
+
         #First slice XY along Z where z=0
-        wa = ((x1 - x) * (y1 - y) * (z1 - z)).unsqueeze(1)
-        wb = ((x1 - x) * (y - y0) * (z1 - z)).unsqueeze(1)
-        wc = ((x - x0) * (y1 - y) * (z1 - z)).unsqueeze(1)
-        wd = ((x - x0) * (y - y0) * (z1 - z)).unsqueeze(1)
+        wa = ((x1_f - x) * (y1_f - y) * (z1_f - z)).unsqueeze(1)
+        wb = ((x1_f - x) * (y - y0_f) * (z1_f - z)).unsqueeze(1)
+        wc = ((x - x0_f) * (y1_f - y) * (z1_f - z)).unsqueeze(1)
+        wd = ((x - x0_f) * (y - y0_f) * (z1_f - z)).unsqueeze(1)
 
         # First slice XY along Z where z=1
-        we = ((x1 - x) * (y1 - y) * (z - z0)).unsqueeze(1)
-        wf = ((x1 - x) * (y - y0) * (z - z0)).unsqueeze(1)
-        wg = ((x - x0) * (y1 - y) * (z - z0)).unsqueeze(1)
-        wh = ((x - x0) * (y - y0) * (z - z0)).unsqueeze(1)
+        we = ((x1_f - x) * (y1_f - y) * (z - z0_f)).unsqueeze(1)
+        wf = ((x1_f - x) * (y - y0_f) * (z - z0_f)).unsqueeze(1)
+        wg = ((x - x0_f) * (y1_f - y) * (z - z0_f)).unsqueeze(1)
+        wh = ((x - x0_f) * (y - y0_f) * (z - z0_f)).unsqueeze(1)
 
         target = sum([wa * Ia, wb * Ib, wc * Ic, wd * Id,  we * Ie, wf * If, wg * Ig, wh * Ih])
         return target.reshape(out_shape)
@@ -279,7 +286,7 @@ class Generator(nn.Module):
         y_flat = y.reshape(1, -1).float()
         z_flat = z.reshape(1, -1).float()
         ones = torch.ones(x_flat.shape)
-        return torch.cat([x_flat, y_flat, z_flat, ones], axis=0)
+        return torch.cat([x_flat, y_flat, z_flat, ones], dim=0)
 
 # algoritması test edilerek geliştirildi
 def AdaIn(features, scale, bias):
@@ -295,10 +302,14 @@ def AdaIn(features, scale, bias):
     # TODO: ileri de bu kısım için normalization ve linear layer eklenebilir!
     # if feature is 4D, the interval will be [1, 2]
     # if feature is 5D, the interval will be [1, 2, 3]
-    interval = list(range(len(features.shape)))[2:]
-    new_shape = tuple(list(features.shape)[:2] + [1] * len(interval))
-    mean = features.mean(interval).reshape(new_shape)
-    variance = features.var(interval).reshape(new_shape)
+    shape = features.shape
+    interval = list(range(len(shape)))[2:]
+    new_shape = tuple(list(shape)[:2] + [1] * len(interval))
+    #print(new_shape)
+    #print("my shape:", (shape[0], shape[1], 1, 1, 1))
+    #new_shape = (shape[0], shape[1], 1, 1, 1)
+    mean = features.view(shape[0], shape[1], -1).mean(2).reshape(new_shape)
+    variance = features.view(shape[0], shape[1], -1).var(2).reshape(new_shape)
 
     sigma = torch.rsqrt(variance + 1e-8)
     normalized = (features - mean) * sigma
@@ -306,4 +317,6 @@ def AdaIn(features, scale, bias):
     bias_broadcast = bias.reshape(mean.shape)
     normalized = scale_broadcast * normalized
     normalized += bias_broadcast
+
+    #print("normalized.shape:", normalized.shape)
     return normalized
