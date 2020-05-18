@@ -128,6 +128,9 @@ class HoloGAN():
             print("time: {:.2f}sec, d_loss: {:.4f}, g_loss: {:.4f}, q_loss: {:.4f}"
                   .format(elapsed_time, float(d_loss), float(g_loss), float(q_loss)))
 
+            if (idx % 1000 == 0):
+                self.sample(args)
+
         result = {"time"  : round(np.mean(batch["time"])),
                   "d_loss": round(np.mean(batch["d"]), 4),
                   "g_loss": round(np.mean(batch["g"]), 4),
