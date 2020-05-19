@@ -34,5 +34,5 @@ $ pip install scipy==1.1.0
 to run:
 python main.py --batch-size 1 --max-epochs 1 --rotate-azimuth --image-path ../dataset/fake/celebA/
 
-ro run other:
+to run other:
 python main.py ./config_HoloGAN.json --dataset celebA --crop input_height 108 --output_height 64 --batch-size 1

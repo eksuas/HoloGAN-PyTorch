@@ -67,7 +67,7 @@ class Discriminator(nn.Module):
         encoder = self.lrelu(self.linear2(x3))
         z_prediction = self.tanh(self.linear3(encoder))
 
-        return self.sigmoid(x4), x4, z_prediction
+        return x4, z_prediction
 
 def truncated_normal_initializer(weight, mean=0, std=0.02):
     size = weight.shape

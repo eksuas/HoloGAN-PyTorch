@@ -16,6 +16,7 @@ from torch.optim import Adam
 from torch.autograd import Variable
 from torchvision import datasets, transforms
 from scipy.misc import imsave
+from datetime import datetime
 from discriminator import Discriminator
 from generator import Generator
 
@@ -73,9 +74,21 @@ class HoloGAN():
 
         # continue to broken training
         args.start_epoch = 0
-        while os.path.exists(args.models_dir+"/discriminator.v"+str(args.start_epoch)+".pt") and \
-              os.path.exists(args.models_dir+"/generator.v"+str(args.start_epoch)+".pt"):
+        while os.path.exists(args.models_dir+"/discriminator.v"+str(args.start_epoch)+"_0.pt") and \
+              os.path.exists(args.models_dir+"/generator.v"+str(args.start_epoch)+"_0.pt"):
             args.start_epoch += 1
+
+        if args.start_epoch:
+            batch_id = 0
+            while os.path.exists(args.models_dir+"/discriminator.v"+str(args.start_epoch-1)+"_"+str(batch_id)+".pt") and \
+                  os.path.exists(args.models_dir+"/generator.v"+str(args.start_epoch-1)+"_"+str(batch_id)+".pt"):
+                batch_id += args.log_interval
+
+            batch_id -= args.log_interval
+            if args.start_epoch or batch_id:
+                model_name = ".v"+str(args.start_epoch-1)+"_"+str(batch_id)+".pt"
+                self.discriminator = torch.load(args.models_dir+"/discriminator"+model_name).to(args.device)
+                self.generator = torch.load(args.models_dir+"/generator"+model_name).to(args.device)
 
         # create sampling folder
         args.samples_dir = "./samples/"+args.dataset
@@ -89,21 +102,15 @@ class HoloGAN():
         """
         for epoch in range(args.start_epoch, args.max_epochs):
             result = collections.OrderedDict({"epoch":epoch})
-            print("Epoch: [{:2d}] ".format(epoch), end="")
-
-            result.update(self.train_epoch(args))
+            result.update(self.train_epoch(args, epoch))
             # validate and keep history at each log interval
             self.save_history(args, result)
 
-            # save model parameters
-            if not args.no_save_model:
-                self.save_model(args, epoch)
-
         # save the model giving the best validation results as a final model
         if not args.no_save_model:
-            self.save_model(args, args.max_epochs-1, True)
+            self.save_model(args, args.max_epochs-1, best=True)
 
-    def train_epoch(self, args):
+    def train_epoch(self, args, epoch):
         """train an epoch
 
         This method train an epoch.
@@ -112,14 +119,14 @@ class HoloGAN():
         self.generator.train()
         self.discriminator.train()
         for idx, (data, _) in enumerate(self.train_loader):
-            print("[{:3d}/{:3d}] ".format(idx, len(self.train_loader)), end="")
+            print("Epoch: [{:2d}] [{:3d}/{:3d}] ".format(epoch, idx, len(self.train_loader)), end="")
             x = data.to(args.device)
             args.batch_size = len(x)
             # rnd_state = np.random.RandomState(seed)
             z = self.sample_z(args)
             view_in = self.sample_view(args)
 
-            d_loss, g_loss, q_loss, elapsed_time = self.train_batch(x, z, view_in, args)
+            d_loss, g_loss, q_loss, elapsed_time = self.train_batch(x, z, view_in, args, idx)
             batch["d"].append(float(d_loss))
             batch["g"].append(float(g_loss))
             batch["q"].append(float(q_loss))
@@ -129,8 +136,11 @@ class HoloGAN():
             print("time: {:.2f}sec, d_loss: {:.4f}, g_loss: {:.4f}, q_loss: {:.4f}"
                   .format(elapsed_time, float(d_loss), float(g_loss), float(q_loss)))
 
-            if (idx % 1 == 0):
-                self.sample(args)
+            if (idx % args.log_interval == 0):
+                self.sample(args, epoch, idx)
+                # save model parameters
+                if not args.no_save_model:
+                    self.save_model(args, epoch, idx)
 
         result = {"time"  : round(np.mean(batch["time"])),
                   "d_loss": round(np.mean(batch["d"]), 4),
@@ -138,7 +148,7 @@ class HoloGAN():
                   "q_loss": round(np.mean(batch["q"]), 4)}
         return result
 
-    def train_batch(self, x, z, view_in, args):
+    def train_batch(self, x, z, view_in, args, batch_id):
         """train the given batch
 
         Arguments are
@@ -151,11 +161,21 @@ class HoloGAN():
         start = time.process_time()
         loss = nn.BCEWithLogitsLoss()
 
-        # Update D network
-        self.optimizer_discriminator.zero_grad()
+        # Train the generator.
+        self.optimizer_generator.zero_grad()
         fake = self.generator(z, view_in)
-        _, d_fake, d_z_pred = self.discriminator(fake[:, :, :64, :64])
-        _, d_real, _ = self.discriminator(x)
+        d_fake, g_z_pred = self.discriminator(fake[:, :, :64, :64])
+        one = torch.ones(d_fake.shape).to(args.device)
+        gen_loss = loss(d_fake, one)
+        q_loss = torch.mean((g_z_pred - z)**2)
+        if batch_id % args.update_g_every_d == 0:
+            (gen_loss + args.lambda_latent * q_loss).backward()
+            self.optimizer_generator.step()
+
+        # Train the discriminator.
+        self.optimizer_discriminator.zero_grad()
+        d_fake, d_z_pred = self.discriminator(fake[:, :, :64, :64].detach())
+        d_real, _ = self.discriminator(x)
         one = torch.ones(d_real.shape).to(args.device)
         zero = torch.zeros(d_fake.shape).to(args.device)
         dis_loss = loss(d_real, one) + loss(d_fake, zero)
@@ -163,25 +183,10 @@ class HoloGAN():
         (dis_loss + args.lambda_latent * q_loss).backward()
         self.optimizer_discriminator.step()
 
-        # Update G network
-        self.optimizer_generator.zero_grad()
-        _, d_fake, g_z_pred = self.discriminator(fake[:, :, :64, :64].detach())
-        gen_loss = loss(d_fake, one)
-        q_loss = torch.mean((g_z_pred - z)**2)
-        self.optimizer_generator.step()
-
-        # Run g_optim twice
-        self.optimizer_generator.zero_grad()
-        fake = self.generator(z, view_in)
-        _, d_fake, g_z_pred = self.discriminator(fake[:, :, :64, :64].detach())
-        gen_loss = loss(d_fake, one)
-        q_loss = torch.mean((g_z_pred - z)**2)
-        self.optimizer_generator.step()
-
         elapsed_time = time.process_time()  - start
         return float(dis_loss), float(gen_loss), float(q_loss), elapsed_time
 
-    def sample(self, args):
+    def sample(self, args, epoch=0, batch=0, trained=False):
         """HoloGAN sampler
 
         This samples images in the given configuration from the HoloGAN.
@@ -211,7 +216,16 @@ class HoloGAN():
             samples = self.generator(z, view_in).permute(0, 2, 3, 1)
             normalized = ((samples+1.)/2.).cpu().detach().numpy()
             image = np.clip(255*normalized, 0, 255).astype(np.uint8)
-            imsave(os.path.join(args.samples_dir, "samples_{}.png".format(i)), image[0])
+            if not trained:
+                folder = os.path.join(args.samples_dir,"/epoch"+str(epoch)+"_"+str(batch))
+            else:
+                now = datetime.now()
+                timestamp = datetime.timestamp(now)
+                folder = os.path.join(args.samples_dir,"/sample_"+str(timestamp))
+
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+            imsave(os.path.join(folder, "/samples_"+str(i)+".png"), image[0])
 
     def load_dataset(self, args):
         """dataset loader.
@@ -280,7 +294,7 @@ class HoloGAN():
         args.recorder.writerow([str(record[key]) for key in record])
         args.hist_file.flush()
 
-    def save_model(self, args, epoch, best=False):
+    def save_model(self, args, epoch, batch=0, best=False):
         """save model
 
         Arguments are
@@ -291,12 +305,18 @@ class HoloGAN():
         """
         filename = args.models_dir
         if best is False:
-            torch.save(self.discriminator, filename+"/discriminator.v"+str(epoch)+".pt")
-            torch.save(self.generator, filename+"/generator.v"+str(epoch)+".pt")
+            torch.save(self.discriminator, filename+"/discriminator.v"+str(epoch)+"_"+str(batch)+".pt")
+            torch.save(self.generator, filename+"/generator.v"+str(epoch)+"_"+str(batch)+".pt")
         else:
+            batch = len(self.train_loader)-1
+            while batch > 0 and not (
+                  os.path.exists(args.models_dir+"/discriminator.v"+str(epoch)+"_"+str(batch)+".pt") and \
+                  os.path.exists(args.models_dir+"/generator.v"+str(epoch)+"_"+str(batch)+".pt")):
+                batch -= 1
+
             train_files = os.listdir(args.models_dir)
             for train_file in train_files:
-                if not train_file.endswith(".v"+str(epoch)+".pt"):
+                if not train_file.endswith(".v"+str(epoch)+"_"+str(batch)+".pt"):
                     os.remove(os.path.join(args.models_dir, train_file))
-            os.rename(filename+"/discriminator.v"+str(epoch)+".pt", filename+"/discriminator.pt")
-            os.rename(filename+"/generator.v"+str(epoch)+".pt", filename+"/generator.pt")
+            os.rename(filename+"/discriminator.v"+str(epoch)+"_"+str(batch)+".pt", filename+"/discriminator.pt")
+            os.rename(filename+"/generator.v"+str(epoch)+"_"+str(batch)+".pt", filename+"/generator.pt")

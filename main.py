@@ -3,6 +3,7 @@ HoloGAN implementation in PyTorch
 May 17, 2020
 """
 import argparse
+import torch
 from hologan import HoloGAN
 
 def initializer():
@@ -13,7 +14,7 @@ def initializer():
     #pylint: disable=C0326, C0330
     parser = argparse.ArgumentParser(description="PyTorch HoloGAN implementation")
     parser.add_argument("--seed",               type=int, default=23)
-    parser.add_argument("--image-path",         type=str, default="../dataset/celebA/")
+    parser.add_argument("--image-path",         type=str, default="../dataset/CelebA/")
     parser.add_argument("--dataset",            type=str, default="celebA", choices=["celebA"])
     parser.add_argument("--gpu",                action="store_true", default=False)
     parser.add_argument("--batch-size",         type=int, default=32)
@@ -38,6 +39,8 @@ def initializer():
     parser.add_argument("--transY-high",        type=int, default=0)
     parser.add_argument("--transZ-low",         type=int, default=0)
     parser.add_argument("--transZ-high",        type=int, default=0)
+    parser.add_argument("--log-interval",       type=int, default=1000)
+    parser.add_argument("--update-g-every-d",   type=int, default=5)
     parser.add_argument("--no-save-model",      action="store_true", default=False,
                                                 help="do not save the current model")
     parser.add_argument("--rotate-elevation",   action="store_true", default=False,
@@ -63,6 +66,7 @@ def initializer():
 def main():
     """Main functionsss"""
     args = initializer()
+    torch.cuda.manual_seed_all(args.seed)
     model = HoloGAN(args)
     model.train(args)
     model.sample(args)
