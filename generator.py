@@ -44,9 +44,10 @@ class BasicBlock(nn.Module):
         return h
 
 class Generator(nn.Module):
-    def __init__(self, in_planes, out_planes, z_planes, view_planes=6):
+    def __init__(self, in_planes, out_planes, z_planes, view_planes=6, gpu=True):
         super(Generator, self).__init__()
-        self.weight = torch.empty((in_planes*8, 4, 4, 4)).normal_(std=0.02)
+        self.device = torch.device("cuda" if gpu else "cpu")
+        self.weight = torch.empty((in_planes*8, 4, 4, 4)).normal_(std=0.02).to(self.device)
 
         self.zMapping = ZMapping(z_planes, in_planes*8)
         self.block1 = BasicBlock(z_planes, in_planes=in_planes*8, out_planes=in_planes*2,
@@ -111,44 +112,45 @@ class Generator(nn.Module):
         # TODO: daha efficient olması için ileri de tek bir matrix formatında oluşturabilir
 
         # Rotation Y matrix
-        theta = torch.as_tensor(view_params[:, 0].reshape(-1, 1, 1))
-        gamma = torch.as_tensor(view_params[:, 1].reshape(-1, 1, 1))
-        ones = torch.ones(theta.shape)
-        zeros = torch.zeros(theta.shape)
+        theta = torch.as_tensor(view_params[:, 0].reshape(-1, 1, 1)).to(self.device)
+        gamma = torch.as_tensor(view_params[:, 1].reshape(-1, 1, 1)).to(self.device)
+        ones = torch.ones(theta.shape).to(self.device)
+        zeros = torch.zeros(theta.shape).to(self.device)
+
         rot_y = torch.cat([
-            torch.cat([theta.cos().float(),  zeros,  -theta.sin().float(),  zeros], axis=2),
-            torch.cat([zeros,                ones,   zeros,                 zeros], axis=2),
-            torch.cat([theta.sin().float(),  zeros,  theta.cos().float(),   zeros], axis=2),
-            torch.cat([zeros,                zeros,  zeros,                 ones],  axis=2)],
-                      axis=1)
+            torch.cat([theta.cos().float(),  zeros,  -theta.sin().float(),  zeros], dim=2),
+            torch.cat([zeros,                ones,   zeros,                 zeros], dim=2),
+            torch.cat([theta.sin().float(),  zeros,  theta.cos().float(),   zeros], dim=2),
+            torch.cat([zeros,                zeros,  zeros,                 ones],  dim=2)],
+                      dim=1)
 
         # Rotation Z matrix
         rot_z = torch.cat([
-            torch.cat([gamma.cos().float(),  gamma.sin().float(),   zeros,  zeros], axis=2),
-            torch.cat([-gamma.sin().float(), gamma.cos().float(),   zeros,  zeros], axis=2),
-            torch.cat([zeros,                zeros,                 ones,   zeros], axis=2),
-            torch.cat([zeros,                zeros,                 zeros,  ones],  axis=2)],
-                      axis=1)
+            torch.cat([gamma.cos().float(),  gamma.sin().float(),   zeros,  zeros], dim=2),
+            torch.cat([-gamma.sin().float(), gamma.cos().float(),   zeros,  zeros], dim=2),
+            torch.cat([zeros,                zeros,                 ones,   zeros], dim=2),
+            torch.cat([zeros,                zeros,                 zeros,  ones],  dim=2)],
+                      dim=1)
 
         rotation_matrix = torch.matmul(rot_z, rot_y)
 
         # Scaling matrix
-        scale = torch.as_tensor(view_params[:, 2].reshape(-1, 1, 1)).float()
+        scale = torch.as_tensor(view_params[:, 2].reshape(-1, 1, 1)).float().to(self.device)
         scaling_matrix = torch.cat([
-            torch.cat([scale, zeros,  zeros, zeros], axis=2),
-            torch.cat([zeros, scale,  zeros, zeros], axis=2),
-            torch.cat([zeros, zeros,  scale, zeros], axis=2),
-            torch.cat([zeros, zeros,  zeros, ones],  axis=2)], axis=1)
+            torch.cat([scale, zeros,  zeros, zeros], dim=2),
+            torch.cat([zeros, scale,  zeros, zeros], dim=2),
+            torch.cat([zeros, zeros,  scale, zeros], dim=2),
+            torch.cat([zeros, zeros,  zeros, ones],  dim=2)], dim=1)
 
         # Translation matrix
-        x_shift = torch.as_tensor(view_params[:,3].reshape(-1, 1, 1)).float()
-        y_shift = torch.as_tensor(view_params[:,4].reshape(-1, 1, 1)).float()
-        z_shift = torch.as_tensor(view_params[:,5].reshape(-1, 1, 1)).float()
+        x_shift = torch.as_tensor(view_params[:,3].reshape(-1, 1, 1)).float().to(self.device)
+        y_shift = torch.as_tensor(view_params[:,4].reshape(-1, 1, 1)).float().to(self.device)
+        z_shift = torch.as_tensor(view_params[:,5].reshape(-1, 1, 1)).float().to(self.device)
         translation_matrix = torch.cat([
-            torch.cat([ones,  zeros, zeros, x_shift], axis=2),
-            torch.cat([zeros, ones,  zeros, y_shift], axis=2),
-            torch.cat([zeros, zeros, ones,  z_shift], axis=2),
-            torch.cat([zeros, zeros, zeros, ones],    axis=2)], axis=1)
+            torch.cat([ones,  zeros, zeros, x_shift], dim=2),
+            torch.cat([zeros, ones,  zeros, y_shift], dim=2),
+            torch.cat([zeros, zeros, ones,  z_shift], dim=2),
+            torch.cat([zeros, zeros, zeros, ones],    dim=2)], dim=1)
 
         transformation_matrix = torch.matmul(translation_matrix, scaling_matrix)
         transformation_matrix = torch.matmul(transformation_matrix, rotation_matrix)
@@ -163,7 +165,7 @@ class Generator(nn.Module):
         centroid = torch.tensor([[1, 0, 0, -size * 0.5],
                                  [0, 1, 0, -size * 0.5],
                                  [0, 0, 1, -size * 0.5],
-                                 [0, 0, 0,           1]])
+                                 [0, 0, 0,           1]]).to(self.device)
         centroid = centroid.reshape(1, 4, 4).repeat(batch_size, 1, 1)
 
         # However, since the rotated grid might be out of bound for the original grid size,
@@ -171,7 +173,7 @@ class Generator(nn.Module):
         centroid_new = torch.tensor([[1, 0, 0, new_size * 0.5],
                                      [0, 1, 0, new_size * 0.5],
                                      [0, 0, 1, new_size * 0.5],
-                                     [0, 0, 0,              1]])
+                                     [0, 0, 0,              1]]).to(self.device)
         centroid_new = centroid_new.reshape(1, 4, 4).repeat(batch_size, 1, 1)
 
         transformed_centoid = torch.matmul(centroid_new, transformation_matrix)
@@ -214,16 +216,16 @@ class Generator(nn.Module):
         z0 = torch.floor(z).int()
         z1 = z0 + 1
 
-        x0 = torch.clamp(x0, 0, max_x)
-        x1 = torch.clamp(x1, 0, max_x)
-        y0 = torch.clamp(y0, 0, max_y)
-        y1 = torch.clamp(y1, 0, max_y)
-        z0 = torch.clamp(z0, 0, max_z)
-        z1 = torch.clamp(z1, 0, max_z)
+        x0 = torch.clamp(x0, 0, max_x).long()
+        x1 = torch.clamp(x1, 0, max_x).long()
+        y0 = torch.clamp(y0, 0, max_y).long()
+        y1 = torch.clamp(y1, 0, max_y).long()
+        z0 = torch.clamp(z0, 0, max_z).long()
+        z1 = torch.clamp(z1, 0, max_z).long()
 
         rep = torch.ones(1, out_height * out_width * out_depth).long()
         base = torch.arange(batch_size) * width * height * depth
-        base = torch.matmul(base.reshape(-1, 1), rep).reshape(-1)
+        base = torch.matmul(base.reshape(-1, 1), rep).reshape(-1).to(self.device)
 
         #Find the Z element of each index
         base_z0 = base + z0 * width * height
@@ -258,28 +260,37 @@ class Generator(nn.Module):
         Ig = voxel_flat[idx_g]
         Ih = voxel_flat[idx_h]
 
+        x0_f = x0.float()
+        x1_f = x1.float()
+        y0_f = y0.float()
+        y1_f = y1.float()
+        z0_f = z0.float()
+        z1_f = z1.float()
+
         #First slice XY along Z where z=0
-        wa = ((x1 - x) * (y1 - y) * (z1 - z)).unsqueeze(1)
-        wb = ((x1 - x) * (y - y0) * (z1 - z)).unsqueeze(1)
-        wc = ((x - x0) * (y1 - y) * (z1 - z)).unsqueeze(1)
-        wd = ((x - x0) * (y - y0) * (z1 - z)).unsqueeze(1)
+        wa = ((x1_f - x) * (y1_f - y) * (z1_f - z)).unsqueeze(1)
+        wb = ((x1_f - x) * (y - y0_f) * (z1_f - z)).unsqueeze(1)
+        wc = ((x - x0_f) * (y1_f - y) * (z1_f - z)).unsqueeze(1)
+        wd = ((x - x0_f) * (y - y0_f) * (z1_f - z)).unsqueeze(1)
 
         # First slice XY along Z where z=1
-        we = ((x1 - x) * (y1 - y) * (z - z0)).unsqueeze(1)
-        wf = ((x1 - x) * (y - y0) * (z - z0)).unsqueeze(1)
-        wg = ((x - x0) * (y1 - y) * (z - z0)).unsqueeze(1)
-        wh = ((x - x0) * (y - y0) * (z - z0)).unsqueeze(1)
+        we = ((x1_f - x) * (y1_f - y) * (z - z0_f)).unsqueeze(1)
+        wf = ((x1_f - x) * (y - y0_f) * (z - z0_f)).unsqueeze(1)
+        wg = ((x - x0_f) * (y1_f - y) * (z - z0_f)).unsqueeze(1)
+        wh = ((x - x0_f) * (y - y0_f) * (z - z0_f)).unsqueeze(1)
 
         target = sum([wa * Ia, wb * Ib, wc * Ic, wd * Id,  we * Ie, wf * If, wg * Ig, wh * Ih])
         return target.reshape(out_shape)
 
     def meshgrid(self, height, width, depth):
-        z, y, x = torch.meshgrid(torch.arange(depth), torch.arange(height), torch.arange(width))
+        z, y, x = torch.meshgrid(torch.arange(depth).to(self.device),
+                                 torch.arange(height).to(self.device),
+                                 torch.arange(width).to(self.device))
         x_flat = x.reshape(1, -1).float()
         y_flat = y.reshape(1, -1).float()
         z_flat = z.reshape(1, -1).float()
-        ones = torch.ones(x_flat.shape)
-        return torch.cat([x_flat, y_flat, z_flat, ones], axis=0)
+        ones = torch.ones(x_flat.shape).to(self.device)
+        return torch.cat([x_flat, y_flat, z_flat, ones], dim=0)
 
 # algoritması test edilerek geliştirildi
 def AdaIn(features, scale, bias):
@@ -295,10 +306,11 @@ def AdaIn(features, scale, bias):
     # TODO: ileri de bu kısım için normalization ve linear layer eklenebilir!
     # if feature is 4D, the interval will be [1, 2]
     # if feature is 5D, the interval will be [1, 2, 3]
-    interval = list(range(len(features.shape)))[2:]
-    new_shape = tuple(list(features.shape)[:2] + [1] * len(interval))
-    mean = features.mean(interval).reshape(new_shape)
-    variance = features.var(interval).reshape(new_shape)
+    shape = features.shape
+    interval = list(range(len(shape)))[2:]
+    new_shape = tuple(list(shape)[:2] + [1] * len(interval))
+    mean = features.view(shape[0], shape[1], -1).mean(2).reshape(new_shape)
+    variance = features.view(shape[0], shape[1], -1).var(2).reshape(new_shape)
 
     sigma = torch.rsqrt(variance + 1e-8)
     normalized = (features - mean) * sigma
