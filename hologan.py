@@ -114,6 +114,7 @@ class HoloGAN():
         for idx, (data, _) in enumerate(self.train_loader):
             print("[{:3d}/{:3d}] ".format(idx, len(self.train_loader)), end="")
             x = data.to(args.device)
+            args.batch_size = len(x)
             # rnd_state = np.random.RandomState(seed)
             z = self.sample_z(args)
             view_in = self.sample_view(args)
