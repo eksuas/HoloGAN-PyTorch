@@ -215,7 +215,7 @@ class HoloGAN():
         for i in range(low, high, step):
             # Apply only azimuth rotation
             if args.rotate_azimuth:
-                view_in = torch.tensor([i*math.pi/180, 0, 1.0, 0, 0, 0])
+                view_in = torch.tensor([(i-90)*math.pi/180, 0, 1.0, 0, 0, 0])
                 view_in = view_in.repeat(args.batch_size, 1)
             # Apply only elevation rotation
             elif args.rotate_elevation:
