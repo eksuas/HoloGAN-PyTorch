@@ -212,6 +212,16 @@ class HoloGAN():
         else:
             low, high, step = 0, 10, 1
 
+        if not trained:
+            folder = os.path.join(args.samples_dir, "epoch"+str(epoch)+"_"+str(batch))
+        else:
+            now = datetime.now()
+            timestamp = datetime.timestamp(now)
+            folder = os.path.join(args.samples_dir, "sample_"+str(timestamp))
+
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
         for i in range(low, high, step):
             # Apply only azimuth rotation
             if args.rotate_azimuth:
@@ -228,15 +238,6 @@ class HoloGAN():
             samples = self.generator(z, view_in).permute(0, 2, 3, 1)
             normalized = ((samples+1.)/2.).cpu().detach().numpy()
             image = np.clip(255*normalized, 0, 255).astype(np.uint8)
-            if not trained:
-                folder = os.path.join(args.samples_dir, "epoch"+str(epoch)+"_"+str(batch))
-            else:
-                now = datetime.now()
-                timestamp = datetime.timestamp(now)
-                folder = os.path.join(args.samples_dir, "sample_"+str(timestamp))
-
-            if not os.path.exists(folder):
-                os.makedirs(folder)
 
             if collection and args.batch_size >= 4:
                 imsave(os.path.join(folder, "samples_"+str(i)+".png"),
@@ -273,7 +274,7 @@ class HoloGAN():
         """
         tensor = torch.cuda.FloatTensor if args.device == "cuda" else torch.FloatTensor
         size = (args.batch_size, args.z_dim)
-        return Variable(tensor(np.random.uniform(-1., 1., size)), requires_grad=True).to(args.device)
+        return tensor(np.random.uniform(-1., 1., size)).to(args.device)
 
     def sample_view(self, args):
         """Transformation parameters sampler
