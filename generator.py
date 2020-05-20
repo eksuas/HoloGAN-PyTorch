@@ -101,7 +101,7 @@ class Generator(nn.Module):
         return h6
 
     def transformation3d(self, voxel_array, view_params, size=16, new_size=16):
-        # TODO: daha efficient olması için ileri de tek bir matrix formatında oluşturabilir
+        # TODO: daha efficient olması için ileri de tek bir matrix formatında oluşturulabilir
 
         # Rotation Y matrix
         theta = Variable(torch.as_tensor(view_params[:, 0].reshape(-1, 1, 1)),

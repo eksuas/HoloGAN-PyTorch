@@ -217,15 +217,15 @@ class HoloGAN():
             normalized = ((samples+1.)/2.).cpu().detach().numpy()
             image = np.clip(255*normalized, 0, 255).astype(np.uint8)
             if not trained:
-                folder = os.path.join(args.samples_dir,"/epoch"+str(epoch)+"_"+str(batch))
+                folder = os.path.join(args.samples_dir, "epoch"+str(epoch)+"_"+str(batch))
             else:
                 now = datetime.now()
                 timestamp = datetime.timestamp(now)
-                folder = os.path.join(args.samples_dir,"/sample_"+str(timestamp))
+                folder = os.path.join(args.samples_dir, "sample_"+str(timestamp))
 
             if not os.path.exists(folder):
                 os.makedirs(folder)
-            imsave(os.path.join(folder, "/samples_"+str(i)+".png"), image[0])
+            imsave(os.path.join(folder, "samples_"+str(i)+".png"), image[0])
 
     def load_dataset(self, args):
         """dataset loader.
