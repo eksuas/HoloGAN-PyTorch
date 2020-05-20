@@ -259,9 +259,7 @@ class HoloGAN():
                 transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))])
 
             trainset = datasets.ImageFolder(root=args.image_path, transform=transform)
-            #trainset = datasets.ImageFolder(root=root+'/train', transform=transform)
-            #testset = datasets.ImageFolder(root=root+'/val', transform=transform)
-
+            
         train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size,\
                         shuffle=True, **kwargs)
         return train_loader
