@@ -14,7 +14,7 @@ def initializer():
     #pylint: disable=C0326, C0330
     parser = argparse.ArgumentParser(description="PyTorch HoloGAN implementation")
     parser.add_argument("--seed",               type=int, default=23)
-    parser.add_argument("--image-path",         type=str, default="../dataset/CelebA/")
+    parser.add_argument("--image-path",         type=str, default="../dataset/celebA/")
     parser.add_argument("--dataset",            type=str, default="celebA", choices=["celebA"])
     parser.add_argument("--gpu",                action="store_true", default=False)
     parser.add_argument("--batch-size",         type=int, default=32)
