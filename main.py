@@ -25,7 +25,6 @@ def initializer():
     parser.add_argument("--g-lr",               type=float, default=0.0001)
     parser.add_argument("--beta1",              type=float, default=0.5)
     parser.add_argument("--beta2",              type=float, default=0.999)
-    parser.add_argument("--DStyle-lambda",      type=float, default=1.0)
     parser.add_argument("--lambda-latent",      type=float, default=0.0)
     parser.add_argument("--elevation-low",      type=int, default=70)
     parser.add_argument("--elevation-high",     type=int, default=110)
@@ -40,7 +39,7 @@ def initializer():
     parser.add_argument("--transZ-low",         type=int, default=0)
     parser.add_argument("--transZ-high",        type=int, default=0)
     parser.add_argument("--log-interval",       type=int, default=1000)
-    parser.add_argument("--update-g-every-d",   type=int, default=5)
+    parser.add_argument("--update-g-every-d",   type=int, default=2)
     parser.add_argument("--no-save-model",      action="store_true", default=False,
                                                 help="do not save the current model")
     parser.add_argument("--rotate-elevation",   action="store_true", default=False,

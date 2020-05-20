@@ -100,7 +100,19 @@ class HoloGAN():
 
         This method train the HoloGAN model.
         """
+        d_lr = args.d_lr
+        g_lr = args.g_lr
         for epoch in range(args.start_epoch, args.max_epochs):
+            # Adaptive learning rate
+            if epoch >= args.epoch_step:
+                adaptive_lr = (args.max_epochs - epoch) / (args.max_epochs - args.epoch_step)
+                d_lr *= adaptive_lr
+                g_lr *= adaptive_lr
+                for param_group in self.optimizer_discriminator.param_groups:
+                    param_group['lr'] = d_lr
+                for param_group in self.optimizer_generator.param_groups:
+                    param_group['lr'] = g_lr
+
             result = collections.OrderedDict({"epoch":epoch})
             result.update(self.train_epoch(args, epoch))
             # validate and keep history at each log interval
@@ -137,7 +149,7 @@ class HoloGAN():
                   .format(elapsed_time, float(d_loss), float(g_loss), float(q_loss)))
 
             if (idx % args.log_interval == 0):
-                self.sample(args, epoch, idx)
+                self.sample(args, epoch, idx, collection=True)
                 # save model parameters
                 if not args.no_save_model:
                     self.save_model(args, epoch, idx)
@@ -186,7 +198,7 @@ class HoloGAN():
         elapsed_time = time.process_time()  - start
         return float(dis_loss), float(gen_loss), float(q_loss), elapsed_time
 
-    def sample(self, args, epoch=0, batch=0, trained=False):
+    def sample(self, args, epoch=0, batch=0, trained=False, collection=False):
         """HoloGAN sampler
 
         This samples images in the given configuration from the HoloGAN.
@@ -225,7 +237,12 @@ class HoloGAN():
 
             if not os.path.exists(folder):
                 os.makedirs(folder)
-            imsave(os.path.join(folder, "samples_"+str(i)+".png"), image[0])
+
+            if collection and args.batch_size >= 4:
+                imsave(os.path.join(folder, "samples_"+str(i)+".png"),
+                       self.merge_samples(image, [args.batch_size // 4, 4]))
+            else:
+                imsave(os.path.join(folder, "samples_"+str(i)+".png"), image[0])
 
     def load_dataset(self, args):
         """dataset loader.
@@ -320,3 +337,12 @@ class HoloGAN():
                     os.remove(os.path.join(args.models_dir, train_file))
             os.rename(filename+"/discriminator.v"+str(epoch)+"_"+str(batch)+".pt", filename+"/discriminator.pt")
             os.rename(filename+"/generator.v"+str(epoch)+"_"+str(batch)+".pt", filename+"/generator.pt")
+
+    def merge_samples(self, images, size):
+        _, h, w, c = images.shape
+        collection = np.zeros((h * size[0], w * size[1], c))
+        for idx, image in enumerate(images):
+            i = idx % size[1]
+            j = idx // size[1]
+            collection[j*h : j*h+h, i*w : i*w+w, :] = image
+        return collection
