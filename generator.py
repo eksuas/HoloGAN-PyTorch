@@ -176,11 +176,9 @@ class Generator(nn.Module):
 
         transformed_centoid = torch.matmul(centroid_new, transformation_matrix)
         transformed_centoid = torch.matmul(transformed_centoid, centroid)
-
-        # TODO: devam eden iki işlemi neden yapıyoruz anlayamadım
         transformed_centoid = transformed_centoid.inverse()
         #Ignore the homogenous coordinate so the results are 3D vectors
-        transformed_centoid = transformed_centoid[:, 0:3, :]
+        #transformed_centoid = transformed_centoid[:, 0:3, :]
 
         grid = self.meshgrid(new_size, new_size, new_size)
         grid = grid.reshape(1, grid.shape[0], grid.shape[1])
@@ -192,14 +190,13 @@ class Generator(nn.Module):
         z_flat = grid_transform[:, 2, :].reshape(-1)
 
         n_channels = voxel_array.shape[1]
-        out_shape = (batch_size, n_channels, new_size, new_size, new_size)
-        transformed = self.interpolation(voxel_array, x_flat, y_flat, z_flat, out_shape)
-        transformed = transformed.reshape(out_shape)
+        transformed = self.interpolation(voxel_array, x_flat, y_flat, z_flat, new_size)
+        out_shape = (batch_size, new_size, new_size, new_size, n_channels)
+        transformed = transformed.reshape(out_shape).permute(0, 4, 1, 2, 3)
         return transformed
 
-    def interpolation(self, voxel_array, x, y, z, out_shape):
+    def interpolation(self, voxel_array, x, y, z, size):
         batch_size, n_channels, height, width, depth = voxel_array.shape
-        _, _, out_height, out_width, out_depth = out_shape
 
         # do sampling
         x0 = torch.floor(x).long()
@@ -216,7 +213,7 @@ class Generator(nn.Module):
         z0 = torch.clamp(z0, 0, depth-1)
         z1 = torch.clamp(z1, 0, depth-1)
 
-        rep  = torch.ones(1, out_height * out_width * out_depth).long()
+        rep  = torch.ones(1, size * size * size).long()
         base = torch.arange(batch_size) * width * height * depth
         base = torch.matmul(base.reshape(-1, 1), rep).reshape(-1).to(self.device)
 
@@ -243,7 +240,7 @@ class Generator(nn.Module):
         idx_h = (base_z1_y1 + x1)
 
         # use indices to lookup pixels in the flat image and restore channels dim
-        voxel_flat = voxel_array.reshape(-1, n_channels)
+        voxel_flat = voxel_array.permute(0, 2, 3, 4, 1).reshape(-1, n_channels)
         Ia = voxel_flat[idx_a]
         Ib = voxel_flat[idx_b]
         Ic = voxel_flat[idx_c]
@@ -273,7 +270,7 @@ class Generator(nn.Module):
         wh = ((x - x0_f) * (y - y0_f) * (z - z0_f)).unsqueeze(1)
 
         target = wa * Ia + wb * Ib + wc * Ic + wd * Id + we * Ie + wf * If + wg * Ig + wh * Ih
-        return target.reshape(out_shape)
+        return target
 
     def meshgrid(self, height, width, depth):
         z, y, x = torch.meshgrid(torch.arange(depth).to(self.device),
