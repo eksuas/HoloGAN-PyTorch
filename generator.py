@@ -190,9 +190,9 @@ class Generator(nn.Module):
         z_flat = grid_transform[:, 2, :].reshape(-1)
 
         n_channels = voxel_array.shape[1]
+        out_shape = (batch_size, n_channels, new_size, new_size, new_size)
         transformed = self.interpolation(voxel_array, x_flat, y_flat, z_flat, new_size)
-        out_shape = (batch_size, new_size, new_size, new_size, n_channels)
-        transformed = transformed.reshape(out_shape).permute(0, 4, 1, 2, 3)
+        transformed = transformed.reshape(out_shape)
         return transformed
 
     def interpolation(self, voxel_array, x, y, z, size):
@@ -240,7 +240,7 @@ class Generator(nn.Module):
         idx_h = (base_z1_y1 + x1)
 
         # use indices to lookup pixels in the flat image and restore channels dim
-        voxel_flat = voxel_array.permute(0, 2, 3, 4, 1).reshape(-1, n_channels)
+        voxel_flat = voxel_array.reshape(-1, n_channels)
         Ia = voxel_flat[idx_a]
         Ib = voxel_flat[idx_b]
         Ic = voxel_flat[idx_c]
