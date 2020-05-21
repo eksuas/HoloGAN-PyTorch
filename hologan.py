@@ -182,22 +182,9 @@ class HoloGAN():
         one = torch.ones(d_fake.shape).to(args.device)
         gen_loss = loss(d_fake, one)
         q_loss = torch.mean((g_z_pred - z)**2)
-        (gen_loss + args.lambda_latent * q_loss).backward()
-        self.optimizer_generator.step()
-
-        self.optimizer_generator.zero_grad()
-        fake = self.generator(z, view_in)
-        d_fake, g_z_pred = self.discriminator(fake[:, :, :64, :64].detach())
-        one = torch.ones(d_fake.shape).to(args.device)
-        gen_loss = loss(d_fake, one)
-        q_loss = torch.mean((g_z_pred - z)**2)
-        (gen_loss + args.lambda_latent * q_loss).backward()
-        self.optimizer_generator.step()
-        """
         if batch_id % args.update_g_every_d == 0:
             (gen_loss + args.lambda_latent * q_loss).backward()
             self.optimizer_generator.step()
-        """
 
         # Train the discriminator.
         self.optimizer_discriminator.zero_grad()
