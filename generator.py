@@ -104,27 +104,25 @@ class Generator(nn.Module):
         # TODO: daha efficient olması için ileri de tek bir matrix formatında oluşturulabilir
 
         # Rotation Y matrix
-        theta = Variable(torch.as_tensor(view_params[:, 0].reshape(-1, 1, 1)),
+        theta = Variable(torch.as_tensor(view_params[:, 0].reshape(-1, 1, 1)).float(),
                          requires_grad=True).to(self.device)
-        gamma = Variable(torch.as_tensor(view_params[:, 1].reshape(-1, 1, 1)),
+        gamma = Variable(torch.as_tensor(view_params[:, 1].reshape(-1, 1, 1)).float(),
                          requires_grad=True).to(self.device)
         ones  = torch.ones(theta.shape, requires_grad=True).to(self.device)
         zeros = torch.zeros(theta.shape, requires_grad=True).to(self.device)
 
         rot_y = torch.cat([
-            torch.cat([theta.cos().float(),  zeros,  -theta.sin().float(),  zeros], dim=2),
-            torch.cat([zeros,                ones,   zeros,                 zeros], dim=2),
-            torch.cat([theta.sin().float(),  zeros,  theta.cos().float(),   zeros], dim=2),
-            torch.cat([zeros,                zeros,  zeros,                 ones],  dim=2)],
-                      dim=1)
+            torch.cat([theta.cos(),  zeros,  -theta.sin(),  zeros], dim=2),
+            torch.cat([zeros,        ones,   zeros,         zeros], dim=2),
+            torch.cat([theta.sin(),  zeros,  theta.cos(),   zeros], dim=2),
+            torch.cat([zeros,        zeros,  zeros,         ones],  dim=2)], dim=1)
 
         # Rotation Z matrix
         rot_z = torch.cat([
-            torch.cat([gamma.cos().float(),  gamma.sin().float(),   zeros,  zeros], dim=2),
-            torch.cat([-gamma.sin().float(), gamma.cos().float(),   zeros,  zeros], dim=2),
-            torch.cat([zeros,                zeros,                 ones,   zeros], dim=2),
-            torch.cat([zeros,                zeros,                 zeros,  ones],  dim=2)],
-                      dim=1)
+            torch.cat([gamma.cos(),  gamma.sin(),   zeros,  zeros], dim=2),
+            torch.cat([-gamma.sin(), gamma.cos(),   zeros,  zeros], dim=2),
+            torch.cat([zeros,        zeros,         ones,   zeros], dim=2),
+            torch.cat([zeros,        zeros,         zeros,  ones],  dim=2)], dim=1)
 
         rotation_matrix = torch.matmul(rot_z, rot_y)
 
@@ -245,7 +243,7 @@ class Generator(nn.Module):
         idx_h = (base_z1_y1 + x1)
 
         # use indices to lookup pixels in the flat image and restore channels dim
-        voxel_flat = voxel_array.reshape(-1, n_channels).float()
+        voxel_flat = voxel_array.reshape(-1, n_channels)
         Ia = voxel_flat[idx_a]
         Ib = voxel_flat[idx_b]
         Ic = voxel_flat[idx_c]
@@ -274,7 +272,7 @@ class Generator(nn.Module):
         wg = ((x - x0_f) * (y1_f - y) * (z - z0_f)).unsqueeze(1)
         wh = ((x - x0_f) * (y - y0_f) * (z - z0_f)).unsqueeze(1)
 
-        target = sum([wa * Ia, wb * Ib, wc * Ic, wd * Id,  we * Ie, wf * If, wg * Ig, wh * Ih])
+        target = wa * Ia + wb * Ib + wc * Ic + wd * Id + we * Ie + wf * If + wg * Ig + wh * Ih
         return target.reshape(out_shape)
 
     def meshgrid(self, height, width, depth):
@@ -284,7 +282,7 @@ class Generator(nn.Module):
         x_flat = x.reshape(1, -1).float()
         y_flat = y.reshape(1, -1).float()
         z_flat = z.reshape(1, -1).float()
-        ones = torch.ones(x_flat.shape).to(self.device)
+        ones = torch.ones(x_flat.shape).float().to(self.device)
         return torch.cat([x_flat, y_flat, z_flat, ones], dim=0)
 
 def AdaIn(features, scale, bias):
