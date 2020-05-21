@@ -173,10 +173,22 @@ class HoloGAN():
         start = time.process_time()
         loss = nn.BCEWithLogitsLoss()
 
+        # Train the discriminator.
+        self.optimizer_discriminator.zero_grad()
+        fake = self.generator(z, view_in)
+        d_fake, d_z_pred = self.discriminator(fake[:, :, :64, :64])
+        d_real, _ = self.discriminator(x)
+        one = torch.ones(d_real.shape).to(args.device)
+        zero = torch.zeros(d_fake.shape).to(args.device)
+        dis_loss = loss(d_real, one) + loss(d_fake, zero)
+        q_loss = torch.mean((d_z_pred - z)**2)
+        (dis_loss + args.lambda_latent * q_loss).backward()
+        self.optimizer_discriminator.step()
+
         # Train the generator.
         self.optimizer_generator.zero_grad()
         fake = self.generator(z, view_in)
-        d_fake, g_z_pred = self.discriminator(fake[:, :, :64, :64])
+        d_fake, g_z_pred = self.discriminator(fake[:, :, :64, :64].detach())
         one = torch.ones(d_fake.shape).to(args.device)
         gen_loss = loss(d_fake, one)
         q_loss = torch.mean((g_z_pred - z)**2)
@@ -196,16 +208,7 @@ class HoloGAN():
             (gen_loss + args.lambda_latent * q_loss).backward()
             self.optimizer_generator.step()
         """
-        # Train the discriminator.
-        self.optimizer_discriminator.zero_grad()
-        d_fake, d_z_pred = self.discriminator(fake[:, :, :64, :64].detach())
-        d_real, _ = self.discriminator(x)
-        one = torch.ones(d_real.shape).to(args.device)
-        zero = torch.zeros(d_fake.shape).to(args.device)
-        dis_loss = loss(d_real, one) + loss(d_fake, zero)
-        q_loss = torch.mean((d_z_pred - z)**2)
-        (dis_loss + args.lambda_latent * q_loss).backward()
-        self.optimizer_discriminator.step()
+
 
         elapsed_time = time.process_time()  - start
         return float(dis_loss), float(gen_loss), float(q_loss), elapsed_time
