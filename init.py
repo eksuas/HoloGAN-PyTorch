@@ -63,7 +63,7 @@ def initializer():
                                                 help="the maximum translation factor across the Z-axis (default: 0)")
     parser.add_argument("--log-interval",       type=int, default=1000, metavar="N",
                                                 help="logging interval in terms of batch size (default: 1000)")
-    parser.add_argument("--update-g-every-d",   type=int, default=2, metavar="N",
+    parser.add_argument("--update-g-every-d",   type=int, default=5, metavar="N",
                                                 help="do not save the current model")
     parser.add_argument("--no-save-model",      action="store_true", default=False,
                                                 help="flag to not save the current model (default: False)")
