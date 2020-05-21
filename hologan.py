@@ -130,6 +130,7 @@ class HoloGAN():
         batch = {"time":[], "g":[], "d":[], "q":[]}
         self.generator.train()
         self.discriminator.train()
+        original_batch_size = args.batch_size
         for idx, (data, _) in enumerate(self.train_loader):
             print("Epoch: [{:2d}] [{:3d}/{:3d}] ".format(epoch, idx, len(self.train_loader)), end="")
             x = data.to(args.device)
@@ -158,6 +159,7 @@ class HoloGAN():
                   "d_loss": round(np.mean(batch["d"]), 4),
                   "g_loss": round(np.mean(batch["g"]), 4),
                   "q_loss": round(np.mean(batch["q"]), 4)}
+        args.batch_size = original_batch_size
         return result
 
     def train_batch(self, x, z, view_in, args, batch_id):
