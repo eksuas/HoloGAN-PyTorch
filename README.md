@@ -32,5 +32,7 @@ $ pip install scipy==1.1.0
 $ conda install -c conda-forge matplotlib
 ```
 
-In order to run:
-python main.py --batch-size 1 --max-epochs 1 --rotate-azimuth
+In order to run
+```markdown  
+$ python main.py --batch-size 1 --max-epochs 1 --rotate-azimuth
+```
