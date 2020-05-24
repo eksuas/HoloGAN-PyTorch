@@ -15,5 +15,5 @@ else
 fi
 echo "Extracting..."
 unzip img_align_celeba.zip -d ../dataset/celebA
-echo "Extraction completed."
+echo "Extraction completed!."
 
