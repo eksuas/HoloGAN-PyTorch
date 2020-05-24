@@ -255,7 +255,8 @@ class HoloGAN():
             else:
                 imsave(os.path.join(folder, "samples_"+str(i)+".png"), image[0])
 
-            print("Samples are saved in", os.path.join(folder, "samples_"+str(i)+".png"))
+            if trained:
+                print("Samples are saved in", os.path.join(folder, "samples_"+str(i)+".png"))
 
     def load_dataset(self, args):
         """dataset loader.
@@ -342,6 +343,8 @@ class HoloGAN():
             gen_model = os.path.join(args.models_dir, "generator.v"+str(epoch)+"_"+str(batch)+".pt")
             while batch > 0 and not (os.path.exists(dis_model) and os.path.exists(gen_model)):
                 batch -= 1
+                dis_model = os.path.join(args.models_dir, "discriminator.v"+str(epoch)+"_"+str(batch)+".pt")
+                gen_model = os.path.join(args.models_dir, "generator.v"+str(epoch)+"_"+str(batch)+".pt")
 
             train_files = os.listdir(args.models_dir)
             for train_file in train_files:
