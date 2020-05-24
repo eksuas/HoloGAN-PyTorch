@@ -11,6 +11,8 @@ import torch
 import numpy as np
 #import matplotlib.pyplot as plt
 
+from os import listdir
+from os.path import isfile, join
 from torch import nn
 from torch.optim import Adam
 from torch.autograd import Variable
@@ -57,41 +59,47 @@ class HoloGAN():
         self.train_loader = self.load_dataset(args)
 
         # create result folder
-        args.results_dir = "./results/"+args.dataset
+        args.results_dir = os.path.join("results", args.dataset)
         if not os.path.exists(args.results_dir):
             os.makedirs(args.results_dir)
 
         # create history file
-        args.hist_file = open(args.results_dir+"/history.csv", "a", newline="")
+        args.hist_file = open(os.path.join(args.results_dir, "history.csv"), "a", newline="")
         args.recorder = csv.writer(args.hist_file, delimiter=",")
-        if os.stat(args.results_dir+"/history.csv").st_size == 0:
+        if os.stat(os.path.join(args.results_dir, "history.csv")).st_size == 0:
             args.recorder.writerow(["epoch", "time", "d_loss", "g_loss", "q_loss"])
 
         # create model folder
-        args.models_dir = "./models/"+args.dataset
+        args.models_dir = os.path.join("models", args.dataset)
         if not os.path.exists(args.models_dir):
             os.makedirs(args.models_dir)
 
         # continue to broken training
-        args.start_epoch = 0
-        while os.path.exists(args.models_dir+"/discriminator.v"+str(args.start_epoch)+"_0.pt") and \
-              os.path.exists(args.models_dir+"/generator.v"+str(args.start_epoch)+"_0.pt"):
-            args.start_epoch += 1
+        if args.load_dis is None:
+            load_model = ""
+            args.start_epoch = 0
+            for modelname in listdir(args.models_dir):
+                if isfile(join(args.models_dir, modelname)) and \
+                   ("discriminator.v" in modelname or "generator.v" in modelname):
+                    start_loc = modelname[:-3].rfind(".v") + 2
+                    end_loc = modelname[:-3].rfind("_")
+                    epoch_str = modelname[start_loc:end_loc]
+                    batch_str = modelname[end_loc:]
+                    dis_model = os.path.join(args.models_dir, "discriminator.v"+epoch_str+batch_str)
+                    gen_model = os.path.join(args.models_dir, "generator.v"+epoch_str+batch_str)
+                    if args.start_epoch < int(epoch_str) and os.path.exists(dis_model) and os.path.exists(gen_model):
+                        args.start_epoch = int(epoch_str)
+                        load_model = epoch_str + batch_str
 
-        if args.start_epoch:
-            batch_id = 0
-            while os.path.exists(args.models_dir+"/discriminator.v"+str(args.start_epoch-1)+"_"+str(batch_id)+".pt") and \
-                  os.path.exists(args.models_dir+"/generator.v"+str(args.start_epoch-1)+"_"+str(batch_id)+".pt"):
-                batch_id += args.log_interval
-
-            batch_id -= args.log_interval
-            if args.start_epoch or batch_id:
-                model_name = ".v"+str(args.start_epoch-1)+"_"+str(batch_id)+".pt"
-                self.discriminator = torch.load(args.models_dir+"/discriminator"+model_name).to(args.device)
-                self.generator = torch.load(args.models_dir+"/generator"+model_name).to(args.device)
+            if args.start_epoch > 0:
+                print("Broken training is detected. Starting epoch is", args.start_epoch)
+                dis_model = os.path.join(args.models_dir, "discriminator.v"+load_model)
+                gen_model = os.path.join(args.models_dir, "generator.v"+load_model)
+                self.discriminator = torch.load(dis_model).to(args.device)
+                self.generator = torch.load(gen_model).to(args.device)
 
         # create sampling folder
-        args.samples_dir = "./samples/"+args.dataset
+        args.samples_dir = os.path.join("samples", args.dataset)
         if not os.path.exists(args.samples_dir):
             os.makedirs(args.samples_dir)
 
@@ -247,6 +255,8 @@ class HoloGAN():
             else:
                 imsave(os.path.join(folder, "samples_"+str(i)+".png"), image[0])
 
+            print("Samples are saved in", os.path.join(folder, "samples_"+str(i)+".png"))
+
     def load_dataset(self, args):
         """dataset loader.
 
@@ -321,23 +331,25 @@ class HoloGAN():
 
         This method saves the trained discriminator and generator in a pt file.
         """
-        filename = args.models_dir
         if best is False:
-            torch.save(self.discriminator, filename+"/discriminator.v"+str(epoch)+"_"+str(batch)+".pt")
-            torch.save(self.generator, filename+"/generator.v"+str(epoch)+"_"+str(batch)+".pt")
+            dis_model = os.path.join(args.models_dir, "discriminator.v"+str(epoch)+"_"+str(batch)+".pt")
+            gen_model = os.path.join(args.models_dir, "generator.v"+str(epoch)+"_"+str(batch)+".pt")
+            torch.save(self.discriminator, dis_model)
+            torch.save(self.generator, gen_model)
         else:
             batch = len(self.train_loader)-1
-            while batch > 0 and not (
-                  os.path.exists(args.models_dir+"/discriminator.v"+str(epoch)+"_"+str(batch)+".pt") and \
-                  os.path.exists(args.models_dir+"/generator.v"+str(epoch)+"_"+str(batch)+".pt")):
+            dis_model = os.path.join(args.models_dir, "discriminator.v"+str(epoch)+"_"+str(batch)+".pt")
+            gen_model = os.path.join(args.models_dir, "generator.v"+str(epoch)+"_"+str(batch)+".pt")
+            while batch > 0 and not (os.path.exists(dis_model) and os.path.exists(gen_model)):
                 batch -= 1
 
             train_files = os.listdir(args.models_dir)
             for train_file in train_files:
                 if not train_file.endswith(".v"+str(epoch)+"_"+str(batch)+".pt"):
                     os.remove(os.path.join(args.models_dir, train_file))
-            os.rename(filename+"/discriminator.v"+str(epoch)+"_"+str(batch)+".pt", filename+"/discriminator.pt")
-            os.rename(filename+"/generator.v"+str(epoch)+"_"+str(batch)+".pt", filename+"/generator.pt")
+
+            os.rename(dis_model, os.path.join(args.models_dir, "discriminator.pt"))
+            os.rename(gen_model, os.path.join(args.models_dir, "generator.pt"))
 
     def merge_samples(self, images, size):
         _, h, w, c = images.shape
