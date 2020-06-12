@@ -103,7 +103,6 @@ class Generator(nn.Module):
     def transformation3d(self, voxel_array, view_params, size=16, new_size=16):
         # TODO: daha efficient olması için ileri de tek bir matrix formatında oluşturulabilir
 
-        # Rotation Y matrix
         theta = Variable(torch.as_tensor(view_params[:, 0].reshape(-1, 1, 1)).float(),
                          requires_grad=True).to(self.device)
         gamma = Variable(torch.as_tensor(view_params[:, 1].reshape(-1, 1, 1)).float(),
@@ -111,18 +110,19 @@ class Generator(nn.Module):
         ones  = torch.ones(theta.shape, requires_grad=True).to(self.device)
         zeros = torch.zeros(theta.shape, requires_grad=True).to(self.device)
 
-        rot_y = torch.cat([
-            torch.cat([theta.cos(),  zeros,  -theta.sin(),  zeros], dim=2),
-            torch.cat([zeros,        ones,   zeros,         zeros], dim=2),
-            torch.cat([theta.sin(),  zeros,  theta.cos(),   zeros], dim=2),
-            torch.cat([zeros,        zeros,  zeros,         ones],  dim=2)], dim=1)
-
-        # Rotation Z matrix
+        # Rotation azimuth (i.e. rotate around-z)
         rot_z = torch.cat([
-            torch.cat([gamma.cos(),  gamma.sin(),   zeros,  zeros], dim=2),
-            torch.cat([-gamma.sin(), gamma.cos(),   zeros,  zeros], dim=2),
-            torch.cat([zeros,        zeros,         ones,   zeros], dim=2),
-            torch.cat([zeros,        zeros,         zeros,  ones],  dim=2)], dim=1)
+            torch.cat([theta.cos(),   theta.sin(),  zeros,  zeros], dim=2),
+            torch.cat([-theta.sin(),  theta.cos(),  zeros,  zeros], dim=2),
+            torch.cat([zeros,         zeros,        ones,   zeros], dim=2),
+            torch.cat([zeros,         zeros,        zeros,  ones],  dim=2)], dim=1)
+
+        # Rotation elevation (i.e. rotate around-x)
+        rot_y = torch.cat([
+            torch.cat([gamma.cos(),   zeros,  gamma.sin(),  zeros], dim=2),
+            torch.cat([zeros,         ones,   zeros,        zeros], dim=2),
+            torch.cat([-gamma.sin(),  zeros,  gamma.cos(),  zeros], dim=2),
+            torch.cat([zeros,         zeros,  zeros,        ones],  dim=2)], dim=1)
 
         rotation_matrix = torch.matmul(rot_z, rot_y)
 

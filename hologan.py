@@ -75,9 +75,9 @@ class HoloGAN():
             os.makedirs(args.models_dir)
 
         # continue to broken training
+        args.start_epoch = 0
         if args.load_dis is None:
             load_model = ""
-            args.start_epoch = 0
             for modelname in listdir(args.models_dir):
                 if isfile(join(args.models_dir, modelname)) and \
                    ("discriminator.v" in modelname or "generator.v" in modelname):
@@ -216,7 +216,7 @@ class HoloGAN():
         """
         z = self.sample_z(args)
         if args.rotate_azimuth:
-            low, high, step = args.azimuth_low, args.azimuth_high, 10
+            low, high, step = args.azimuth_low, args.azimuth_high+1, 5
         elif args.rotate_elevation:
             low, high, step = args.elevation_low, args.elevation_high, 5
         else:
@@ -235,11 +235,11 @@ class HoloGAN():
         for i in range(low, high, step):
             # Apply only azimuth rotation
             if args.rotate_azimuth:
-                view_in = torch.tensor([(i-90)*math.pi/180, 0, 1.0, 0, 0, 0])
+                view_in = torch.tensor([i*math.pi/180, 0, 1.0, 0, 0, 0])
                 view_in = view_in.repeat(args.batch_size, 1)
             # Apply only elevation rotation
             elif args.rotate_elevation:
-                view_in = torch.tensor([270*math.pi/180, (90-i)*math.pi/180, 1.0, 0, 0, 0])
+                view_in = torch.tensor([270*math.pi/180, i*math.pi/180, 1.0, 0, 0, 0])
                 view_in = view_in.repeat(args.batch_size, 1)
             # Apply default transformation
             else:
@@ -295,11 +295,16 @@ class HoloGAN():
         # the azimuth angle (theta) is around y
         theta = np.random.randint(args.azimuth_low, args.azimuth_high,
                                   (args.batch_size)).astype(np.float)
-        theta = (theta - 90.) * math.pi / 180.0
+        theta = theta * math.pi / 180.0
+
         # the elevation angle (gamma) is around x
-        gamma = np.random.randint(args.elevation_low, args.elevation_high,
-                                  (args.batch_size)).astype(np.float)
-        gamma = (90. - gamma) * math.pi / 180.0
+        if args.elevation_low < args.elevation_high:
+            gamma = np.random.randint(args.elevation_low, args.elevation_high,
+                                      (args.batch_size)).astype(np.float)
+            gamma = gamma * math.pi / 180.0
+        else:
+            gamma = np.zeros(args.batch_size).astype(np.float)
+
         scale = float(np.random.uniform(args.scale_low, args.scale_high))
         shift_x = args.transX_low + np.random.random(args.batch_size) * \
                   (args.transX_high - args.transX_low)

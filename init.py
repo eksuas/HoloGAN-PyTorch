@@ -37,13 +37,13 @@ def initializer():
                                                 help="maximum betas parameter of the Adam optimizer (default: 0.999)")
     parser.add_argument("--lambda-latent",      type=float, default=0.0, metavar="N",
                                                 help="the lambda latent coefficient given in the paper (default: 0.0)")
-    parser.add_argument("--elevation-low",      type=int, default=70, metavar="N",
+    parser.add_argument("--elevation-low",      type=int, default=0, metavar="N",
                                                 help="the minimum elevation angle (default: 70)")
-    parser.add_argument("--elevation-high",     type=int, default=110, metavar="N",
+    parser.add_argument("--elevation-high",     type=int, default=0, metavar="N",
                                                 help="the maximum elevation angle (default: 110)")
-    parser.add_argument("--azimuth-low",        type=int, default=220, metavar="N",
+    parser.add_argument("--azimuth-low",        type=int, default=25, metavar="N",
                                                 help="the minimum azimuth angle (default: 220)")
-    parser.add_argument("--azimuth-high",       type=int, default=320, metavar="N",
+    parser.add_argument("--azimuth-high",       type=int, default=65, metavar="N",
                                                 help="the maximum azimuth angle (default: 320)")
     parser.add_argument("--scale-low",          type=float, default=1.0, metavar="N",
                                                 help="the minimum scaling value of 3D transformation (default: 1.0)")
