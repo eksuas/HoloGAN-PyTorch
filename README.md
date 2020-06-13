@@ -32,7 +32,7 @@ $ pip install scipy==1.1.0
 $ conda install -c conda-forge matplotlib
 ```
 
-In order to run
+In order to train
 ```markdown  
-$ python main.py --batch-size 1 --max-epochs 1 --rotate-azimuth
+$ python main.py --batch-size 1 --max-epochs 100 --rotate-azimuth
 ```
