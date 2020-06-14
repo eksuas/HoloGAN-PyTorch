@@ -16,8 +16,6 @@ Gökhan Özsarı, gokhan.ozsari@metu.edu.tr
 Please see the jupyter notebook file [main.ipynb](main.ipynb) for a summary of paper, the implementation notes and our experimental results. 
 
 
-## HoloGAN implementation in PyTorch
-
 ## Building the development environment:
 Install Anaconda 3.7 from the website: https://www.anaconda.com/products/individual
 
