@@ -1,6 +1,6 @@
 # HoloGAN: Unsupervised Learning of 3D Representations From Natural Images 
 #### Link to the paper: https://arxiv.org/abs/1904.01326
-### Authors: Thu Nguyen-Phuoc, Chuan Li, Lucas Theis, Christian Richardt, Yong-Liang Yang
+#### Authors of the paper: Thu Nguyen-Phuoc, Chuan Li, Lucas Theis, Christian Richardt, Yong-Liang Yang
 #### International Conference on Computer Vision ICCV 2019.
 
 ### The ultimate results we obtained are as follows:
@@ -9,9 +9,9 @@
 
 This folder provides a re-implementation of this paper in PyTorch, developed as part of the course METU CENG 796 - Deep Generative Models. The re-implementation is provided by:
 
-Edanur Demir, edanur.demir@metu.edu.tr
+### Edanur Demir, edanur.demir@metu.edu.tr
 
-Gökhan Özsarı, gokhan.ozsari@metu.edu.tr
+### Gökhan Özsarı, gokhan.ozsari@metu.edu.tr
 
 Please see the jupyter notebook file [main.ipynb](main.ipynb) for a summary of paper, the implementation notes and our experimental results. 
 
