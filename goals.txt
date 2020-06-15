@@ -33,3 +33,14 @@ there, our results are not as successful as theirs. Probably, our code has some 
 working on these issues. Our future plan is to test our code more to find bugs. Because our 3D
 transformation looks correct, we think that the problem may happen in z values of the generator.
 We will test it more delicately. More detail can be found in our Jupyter notebook.
+
+ —— version 2 submission ——
+ As we mentioned above, we used the CelebA dataset instead of the Chairs dataset in our experiments.
+ But, our qualitative and quantitative goals are valid for both dataset so that we didn't change our
+ goals.
+
+ We have been able to reproduce the results that we have aimed to reproduce. The qualitative results
+ are very close to Figure 4 in the paper. However, our quantitative goal, KID score, is a little bit
+ poorer than the original study.
+
+ More details can be found in the main notebook of the project.
