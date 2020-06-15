@@ -1,6 +1,7 @@
 # [HoloGAN: Unsupervised Learning of 3D Representations From Natural Images](https://arxiv.org/abs/1904.01326)
 
 Thu Nguyen-Phuoc, Chuan Li, Lucas Theis, Christian Richardt, Yong-Liang Yang
+
 *International Conference on Computer Vision ICCV 2019*
 
 **<img src="samples/epoch99.gif">**
