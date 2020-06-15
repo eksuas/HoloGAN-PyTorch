@@ -10,7 +10,7 @@ This folder provides a re-implementation of this paper in PyTorch, developed as 
 
 * Edanur Demir, e181920@metu.edu.tr
 
-* Gökhan Özsarı, gokhan.ozsari@metu.edu.tr
+* Gökhan Özsarı, e211499@metu.edu.tr
 
 Please see the jupyter notebook file [main.ipynb](main.ipynb) for a summary of paper, the implementation notes and our experimental results.
 
